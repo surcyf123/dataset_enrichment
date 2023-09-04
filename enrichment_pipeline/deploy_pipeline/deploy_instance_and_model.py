@@ -102,7 +102,7 @@ client.connect(
     hostname=instance_addr,
     port=instance_port,  # default port for SSH
     username='root',
-    key_filename='/home/bird/.ssh/id_rsa'
+    key_filename='../../credentials/autovastai'
 )
 
 # Execute command
