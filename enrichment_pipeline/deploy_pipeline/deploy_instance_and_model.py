@@ -88,7 +88,14 @@ get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(check_instance
 print()
 res_json = json.loads(get_port_and_ip_output.stdout)
 instance_addr:str = res_json[0]['public_ipaddr']
-instance_port:int = int(res_json[0]['direct_port_end'])
+instance_port:int = int(res_json[0]['ssh_port'])
+
+# Check if direct_port_end is -1, if it is, we connect to the proxy
+if instance_port == -1:
+    instance_addr:str = res_json[0]['ssh_host']
+    instance_port:int = int(res_json[0]['20800'])
+
+
 
 # %%
 
