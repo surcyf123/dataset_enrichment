@@ -51,7 +51,7 @@ print(launch_subprocess_output)
 # %%
 # Get the instance ID
 import re
-instance_id:str =re.findall("('new_contract': )(.*)(})","Started. {'success': True, 'new_contract': 6899277}\n")[0][1]
+instance_id:str =re.findall("('new_contract': )(.*)(})",launch_subprocess_output.stdout)[0][1]
 
 
 # Wait for it to be done
@@ -59,19 +59,20 @@ instance_id:str =re.findall("('new_contract': )(.*)(})","Started. {'success': Tr
 import time
 while True:
     check_instances_command = f'show instances'
-
+    
     check_instances_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command),stdout=subprocess.PIPE,text=True)
 
     lines = check_instances_output.stdout.strip().split("\n")
     headers = lines[0].replace("Util. %","Util_%").replace("SSH Addr","SSH_Addr").replace("SSH Port","SSH_Port").replace("Net up","Net_up").replace("Net down","Net_down").split()
     rows = [line.split() for line in lines[1:]]
     df_statuses = pd.DataFrame(rows,columns=headers)
-    print(df_statuses)
+    # print(df_statuses)
 
     target_row = df_statuses.loc[df_statuses['ID'] == instance_id]
     if target_row.loc[0,"Status"] == "running":
-        print("Instance {instance_id} is ready")
+        print(f"Instance {instance_id} is ready")
         break
+    print("instance is starting...")
     time.sleep(5)
 
 
@@ -104,7 +105,7 @@ client.connect(
     username='root',
     key_filename='../../credentials/autovastai'
 )
-
+# %%
 # Execute command
 # Install dependancies and download model
 commands = ['pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum','cd /root/', 'mkdir pineapple', 'cd pineapple',"curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ"]
