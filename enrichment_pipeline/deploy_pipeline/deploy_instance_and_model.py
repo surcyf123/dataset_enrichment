@@ -35,7 +35,7 @@ print(viable_models.head())
 # num_gpus > 4
 # gpu = RTX_3090
 # download speed > 200
-# %%
+
 # Pick the first model and launch it with the right image
 
 model_id_chosen:str = viable_models.iloc[0].loc["ID"]
@@ -78,7 +78,7 @@ with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready
 #SSH into instance
 
 #get connection details
-# %%
+
 import json
 get_port_and_ip_command = f'show instance {instance_id}'
 get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command)+['--raw'],stdout=subprocess.PIPE,text=True)
@@ -93,9 +93,7 @@ res_json = json.loads(get_port_and_ip_output.stdout)
 
 instance_addr:str = res_json[0]['ssh_host']
 instance_port:int = int(res_json[0]['ssh_port'])
-
-
-# %%
+print(f'Connect via SSH:\nssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p {instance_port} root@{instance_addr} -L 8080:localhost:8080 \n')
 
 import paramiko
 
@@ -105,7 +103,7 @@ client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set t
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 # Connect to the remote server
 
-# %%
+time.sleep(10)
 client.connect(
     hostname=instance_addr,
     port=instance_port,  # default port for SSH
@@ -120,61 +118,36 @@ from scp import SCPClient
 scp = SCPClient(client.get_transport())
 scp.put(files=['/home/bird/dataset_enrichment/credentials/autovastai','/home/bird/dataset_enrichment/credentials/autovastai.pub'],remote_path='/root/.ssh/')
 
-
-
 # ssh-add ~/.ssh/id_rsa
 shell = client.invoke_shell()
-shell.send("ssh-add ~/.ssh/autovastai"+"\n")
-
+shell.send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
 client.close()
-
-
-
-
-
-
-# %%
+time.sleep(0.3)
 client.connect(
     hostname=instance_addr,
     port=instance_port,  # default port for SSH
     username='root',
     pkey=pkey,
     look_for_keys=False)
-time.sleep(0.2)
-# Execute command
-# Install dependancies and download model
 shell = client.invoke_shell()
 shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
+client.close()
+# %%
 
+client.connect(
+    hostname=instance_addr,
+    port=instance_port,  # default port for SSH
+    username='root',
+    pkey=pkey,
+    look_for_keys=False)
+shell = client.invoke_shell()
 
-
-
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ","echo 8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
 commandstr = " && ".join(commands)
-print(commandstr)
 shell.send(commandstr+"\n")
 
 while not shell.recv_ready():
-    print("Setting Up...")
     time.sleep(1)
-    
-
-
-# Close the SSH client
-client.close()
-
-
- #ssh $(./vastai ssh-url 6899217)
-# %%
-from utils import get_tmux_content
-client.connect(
-    hostname=instance_addr,
-    port=instance_port,  # default port for SSH
-    username='root',
-    pkey=pkey,
-    look_for_keys=False)
-
-"8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95"
 
 
 with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
@@ -182,10 +155,23 @@ with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
         time.sleep(1)
 
 
-# %%
+"30ac9dfe-aef1-4766-a75e-0e14dd7ac27f "
+"git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ"
 
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
+# Put your models here
+commands = ["git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ","cat ./credentials/ckpt2"]
+commandstr = " && ".join(commands)
+shell.send(commandstr+"\n")
+
+while not shell.recv_ready():
+    time.sleep(1)
+
+with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
+    while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
+        time.sleep(1)
+
+
+# %%
 
 # Connect to the remote server
 client.connect(
