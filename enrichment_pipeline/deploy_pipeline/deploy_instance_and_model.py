@@ -9,6 +9,7 @@ import time
 import json
 import paramiko
 from scp import SCPClient
+import uuid
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
@@ -112,7 +113,7 @@ client.connect(
     pkey=pkey,
     look_for_keys=False)
 shell = client.invoke_shell()
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
 while not shell.recv_ready():
@@ -130,6 +131,47 @@ while not shell.recv_ready():
 with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
     while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
         time.sleep(1)
+
+# %%
+models_uuids= []
+# TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
+
+
+# Host Model
+model_uuid = uuid.uuid4()
+models_uuids.append(model_uuid)
+start_screen_command = f"screen -S {str(model_uuid)}"
+shell.send(start_screen_command)
+while not shell.recv_ready():
+    time.sleep(1)
+time.sleep(0.3)
+
+launch_args = {
+    'model_path' : '../Llama-2-7b-Chat-GPTQ',
+    'local port' : '7777'
+}
+
+commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']}","cat /root/dataset_enrichment/credentials/ckpt3"]
+commandstr = " && ".join(commands)
+shell.send(commandstr+"\n")
+while not shell.recv_ready():
+    time.sleep(1)
+with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+    while "1192ebb3-61ce-4b12-b808-1de74424432f" not in get_tmux_content(client):
+        time.sleep(1)
+
+
+
+# Print Model endpoint details
+
+# Launch Experiment
+
+
+
+
+# Upload Results to Git
+
+
 
 # %%
 

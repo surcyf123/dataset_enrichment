@@ -4,6 +4,7 @@ import sys
 
 
 model_name_or_path = sys.argv[1]
+local_port = sys.argv[2]
 
 
 from flask import Flask, request, jsonify
@@ -15,6 +16,7 @@ from typing import List
 
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path,
                                           use_fast=False,
+                                          local_files_only=True,
                                           trust_remote_code=True)
 
 class StoppingCriteriaSub(StoppingCriteria):
@@ -36,6 +38,7 @@ def convert_stopwords_to_ids(stopwords : List[str]):
 
 
 model = AutoModelForCausalLM.from_quantized(model_name_or_path,
+                                            local_files_only=True,
                                            torch_dtype=torch.float16,
                                            trust_remote_code=True,
                                            device_map="cuda:0")
@@ -80,4 +83,4 @@ def generate_text():
     return jsonify({'text': text})
 
 if __name__ == '__main__':
-    app.run(debug=False, port=7777)
+    app.run(debug=False, port=local_port)
