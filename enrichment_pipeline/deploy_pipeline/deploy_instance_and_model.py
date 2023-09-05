@@ -141,7 +141,7 @@ model_uuids= []
 experiment_uuids = []
 base_uuid = str(uuid.uuid4())
 model_uuid = "MOD:"+base_uuid
-experiment_uuid = "EXP:"
+experiment_uuid = "EXP:"+base_uuid
 model_uuids.append(model_uuid)
 experiment_uuids.append(experiment_uuid)
 
@@ -170,12 +170,13 @@ with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready
 shell.send('\x01')
 time.sleep(0.1)
 shell.send('d\n')
-while not shell.recv_ready():
-    time.sleep(1)
+time.sleep(1)
+shell.send('cd ..')
 
 # 
 # Launch Experiment
 # Start Screen
+time.sleep(1)
 start_screen_command = f"screen -S {experiment_uuid}"
 shell.send(start_screen_command + "\n")
 while not shell.recv_ready():
@@ -186,8 +187,8 @@ launch_args = {
     'model_path' : '../Llama-2-7b-Chat-GPTQ',
     'local_port' : '7777'
 }
-# Run Model
-commands = ["cd enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']}"]
+# Run Experiment
+commands = ["cd enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
 while not shell.recv_ready():

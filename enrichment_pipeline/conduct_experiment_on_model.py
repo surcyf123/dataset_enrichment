@@ -2,6 +2,7 @@
 import sys
 model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
+experiment_id = sys.argv[3]
 
 import requests
 import json
@@ -58,7 +59,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     
 
 # Initialize CSV file and writer
-with open(f'results/{hyperparameter_searches["num_tokens"]}-{model_name_or_path.replace("/","-")}.csv', mode='x', newline='') as csv_file:
+with open(f'results/{hyperparameter_searches["num_tokens"]}-{experiment_id}.csv', mode='x', newline='') as csv_file:
     
     fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration',
                   'reciprocate_reward', 'relevance_filter', 'rlhf_reward', 'combined_reward','prompt','generated_text']
