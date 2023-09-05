@@ -133,14 +133,20 @@ with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
         time.sleep(1)
 
 # %%
-models_uuids= []
+
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
 
+# Init UUIDs
+model_uuids= []
+experiment_uuids = []
+base_uuid = str(uuid.uuid4())
+model_uuid = "MOD:"+base_uuid
+experiment_uuid = "EXP:"
+model_uuids.append(model_uuid)
+experiment_uuids.append(experiment_uuid)
 
-# Host Model
-model_uuid = uuid.uuid4()
-models_uuids.append(model_uuid)
-start_screen_command = f"screen -S {str(model_uuid)}"
+# Start Screen
+start_screen_command = f"screen -S {model_uuid}"
 shell.send(start_screen_command + "\n")
 while not shell.recv_ready():
     time.sleep(1)
@@ -150,22 +156,52 @@ launch_args = {
     'model_path' : '../Llama-2-7b-Chat-GPTQ',
     'local_port' : '7777'
 }
-
-commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']}","cat /root/dataset_enrichment/credentials/ckpt3"]
+# Run Model
+commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']}"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
 while not shell.recv_ready():
     time.sleep(1)
 with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
-    while "1192ebb3-61ce-4b12-b808-1de74424432f" not in get_tmux_content(client):
+    while "Serving Flask app" not in get_tmux_content(client):
         time.sleep(1)
 
+# Detatch Screen
+shell.send('\x01')
+time.sleep(0.1)
+shell.send('d\n')
+while not shell.recv_ready():
+    time.sleep(1)
 
-
-# Print Model endpoint details
-
+# 
 # Launch Experiment
+# Start Screen
+start_screen_command = f"screen -S {experiment_uuid}"
+shell.send(start_screen_command + "\n")
+while not shell.recv_ready():
+    time.sleep(1)
+time.sleep(0.3)
 
+launch_args = {
+    'model_path' : '../Llama-2-7b-Chat-GPTQ',
+    'local_port' : '7777'
+}
+# Run Model
+commands = ["cd enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']}"]
+commandstr = " && ".join(commands)
+shell.send(commandstr+"\n")
+while not shell.recv_ready():
+    time.sleep(1)
+with Loader(desc=f"Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+    while "Experiment Complete" not in get_tmux_content(client):
+        time.sleep(1)
+
+# Detatch Screen
+shell.send('\x01')
+time.sleep(0.1)
+shell.send('d\n')
+while not shell.recv_ready():
+    time.sleep(1)
 
 
 
