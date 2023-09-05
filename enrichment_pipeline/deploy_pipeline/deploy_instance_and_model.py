@@ -113,7 +113,7 @@ client.connect(
     pkey=pkey,
     look_for_keys=False)
 shell = client.invoke_shell()
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
 while not shell.recv_ready():
@@ -141,14 +141,14 @@ models_uuids= []
 model_uuid = uuid.uuid4()
 models_uuids.append(model_uuid)
 start_screen_command = f"screen -S {str(model_uuid)}"
-shell.send(start_screen_command)
+shell.send(start_screen_command + "\n")
 while not shell.recv_ready():
     time.sleep(1)
 time.sleep(0.3)
 
 launch_args = {
     'model_path' : '../Llama-2-7b-Chat-GPTQ',
-    'local port' : '7777'
+    'local_port' : '7777'
 }
 
 commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']}","cat /root/dataset_enrichment/credentials/ckpt3"]

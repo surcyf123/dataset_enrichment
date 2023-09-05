@@ -37,7 +37,7 @@ def convert_stopwords_to_ids(stopwords : List[str]):
     return stopping_criteria
 
 
-model = AutoModelForCausalLM.from_quantized(model_name_or_path,
+model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
                                             local_files_only=True,
                                            torch_dtype=torch.float16,
                                            trust_remote_code=True,
