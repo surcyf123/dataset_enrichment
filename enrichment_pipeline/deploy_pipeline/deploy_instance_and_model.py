@@ -15,7 +15,7 @@ VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad
 # TODO: Find the number of GPUs, and launch that many models
 
 
-#Get rows of results
+# Finds all available instances
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
 search_for_instances = 'search offers " num_gpus>1 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
@@ -24,7 +24,7 @@ lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
 rows = [line.split() for line in lines[1:]]
 
-#Pick based on these criteria:
+#Pick based on criteria:
 # disk space must be 20 gb per card (13b model is <10gb)
 # cpu_cores_effective > gpu count
 # RAM: 8gb per card
@@ -40,7 +40,7 @@ df_instances['Disk'] = df_instances['Disk'].astype(float)
 viable_models = df_instances[(df_instances['RAM'] / df_instances['N'] >= 4) & (df_instances['vCPUs'] / df_instances['N'] >= 1) * (df_instances['Disk'] > df_instances['N'] * 20)]
 print(viable_models.head())
 
-# Pick the first model and launch it with the right image
+# Pick the first instance and launch it with the right image
 model_id_chosen:str = viable_models.iloc[0].loc["ID"]
 disk_space_required:int = viable_models.iloc[0].loc["N"] * 20
 cuda_vers = viable_models.iloc[0].loc["CUDA"] #TODO: they only go up to CUDA 11.7
@@ -79,19 +79,29 @@ client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 
-# Connect to the remote server
-client.connect(
-    hostname=instance_addr,
-    port=instance_port,  # default port for SSH
-    username='root',
-    pkey=pkey,
-    look_for_keys=False)
-time.sleep(0.2)
+while True:
+    try:
+        # Connect to the remote server
+        client.connect(
+            hostname=instance_addr,
+            port=instance_port,  # default port for SSH
+            username='root',
+            pkey=pkey,
+            look_for_keys=False)
+        time.sleep(0.2)
+        break
+
+    except:
+        print("Retrying SSH Connection...")
+        time.sleep(2)
+        
 
 # SCP and Register Private Key for Machine Account
 scp = SCPClient(client.get_transport())
 scp.put(files=['/home/bird/dataset_enrichment/credentials/autovastai','/home/bird/dataset_enrichment/credentials/autovastai.pub'],remote_path='/root/.ssh/')
 shell = client.invoke_shell()
+shell.send('chmod 600 ~/.ssh/autovastai && chmod 600 ~/.ssh/autovastai.pub' + "\n")
+time.sleep(0.3)
 shell.send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
 client.close()
 time.sleep(0.3)
