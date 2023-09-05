@@ -13,7 +13,7 @@ import uuid
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
-
+# TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
 
 # Finds all available instances
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
@@ -43,7 +43,7 @@ print(viable_models.head())
 # Pick the first instance and launch it with the right image
 model_id_chosen:str = viable_models.iloc[0].loc["ID"]
 disk_space_required:int = viable_models.iloc[0].loc["N"] * 20
-cuda_vers = viable_models.iloc[0].loc["CUDA"] #TODO: they only go up to CUDA 11.7
+cuda_vers = viable_models.iloc[0].loc["CUDA"]
 launch_command = f'create instance {model_id_chosen} --image pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel --disk {str(disk_space_required)}'
 launch_subprocess_output = subprocess.run(['./vast.py']+shlex.split(launch_command),stdout=subprocess.PIPE,text=True)
 assert('success' in launch_subprocess_output.stdout) # it will fail here if there is an issue
@@ -142,9 +142,8 @@ with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
     while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
         time.sleep(1)
 
-# %%
 
-# TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
+
 
 # Init UUIDs
 model_uuids= []
@@ -214,11 +213,6 @@ shell.send('d\n')
 while not shell.recv_ready():
     time.sleep(1)
 
-
-
 # Upload Results to Git
 
-
-
 # %%
-
