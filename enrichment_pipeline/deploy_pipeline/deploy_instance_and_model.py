@@ -180,7 +180,7 @@ shell.send('\x01')
 time.sleep(0.1)
 shell.send('d\n')
 time.sleep(1)
-shell.send('cd ..')
+shell.send('cd ..'+"\n")
 
 # 
 # Launch Experiment
