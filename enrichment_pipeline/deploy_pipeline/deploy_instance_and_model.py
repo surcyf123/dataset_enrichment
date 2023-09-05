@@ -2,32 +2,29 @@
 import subprocess
 from loader import Loader
 from utils import get_tmux_content
-API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-
-cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-
-completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-
 import pandas as pd
 import shlex
+import re
+import time
+import json
+import paramiko
+from scp import SCPClient
+import uuid
+VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
+# TODO: Handle when you are outbid
+# TODO: Find the number of GPUs, and launch that many models
+
+
+#Get rows of results
+cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
+completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
 search_for_instances = 'search offers " num_gpus>1 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
-
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
-
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
 rows = [line.split() for line in lines[1:]]
 
-df_instances = pd.DataFrame(rows,columns=headers)
-df_instances['N'] = df_instances['N'].str.replace('x','').astype(int)
-df_instances['RAM'] = df_instances['RAM'].astype(float)
-df_instances['vCPUs'] = df_instances['vCPUs'].astype(float)
-df_instances['Disk'] = df_instances['Disk'].astype(float)
-
-viable_models = df_instances[(df_instances['RAM'] / df_instances['N'] >= 4) & (df_instances['vCPUs'] / df_instances['N'] >= 1) * (df_instances['Disk'] > df_instances['N'] * 20)]
-print(viable_models.head())
-# ./vast.py create instance [id]
-# find the number of GPUs, and launch that many models
+#Pick based on these criteria:
 # disk space must be 20 gb per card (13b model is <10gb)
 # cpu_cores_effective > gpu count
 # RAM: 8gb per card
@@ -35,25 +32,24 @@ print(viable_models.head())
 # num_gpus > 4
 # gpu = RTX_3090
 # download speed > 200
+df_instances = pd.DataFrame(rows,columns=headers)
+df_instances['N'] = df_instances['N'].str.replace('x','').astype(int)
+df_instances['RAM'] = df_instances['RAM'].astype(float)
+df_instances['vCPUs'] = df_instances['vCPUs'].astype(float)
+df_instances['Disk'] = df_instances['Disk'].astype(float)
+viable_models = df_instances[(df_instances['RAM'] / df_instances['N'] >= 4) & (df_instances['vCPUs'] / df_instances['N'] >= 1) * (df_instances['Disk'] > df_instances['N'] * 20)]
+print(viable_models.head())
 
 # Pick the first model and launch it with the right image
-
 model_id_chosen:str = viable_models.iloc[0].loc["ID"]
 disk_space_required:int = viable_models.iloc[0].loc["N"] * 20
 cuda_vers = viable_models.iloc[0].loc["CUDA"] #TODO: they only go up to CUDA 11.7
-
 launch_command = f'create instance {model_id_chosen} --image pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel --disk {str(disk_space_required)}'
-
 launch_subprocess_output = subprocess.run(['./vast.py']+shlex.split(launch_command),stdout=subprocess.PIPE,text=True)
-assert('success' in launch_subprocess_output.stdout)
-# print(launch_subprocess_output)
+assert('success' in launch_subprocess_output.stdout) # it will fail here if there is an issue
 
-import re
+# Find instance ID and wait for it to be done
 instance_id:str =re.findall("('new_contract': )(.*)(})",launch_subprocess_output.stdout)[0][1]
-
-
-# Wait for it to be done
-import time
 with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready!"):
     while True:
         check_instances_command = f'show instances'
@@ -64,46 +60,26 @@ with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready
         headers = lines[0].replace("Util. %","Util_%").replace("SSH Addr","SSH_Addr").replace("SSH Port","SSH_Port").replace("Net up","Net_up").replace("Net down","Net_down").split()
         rows = [line.split() for line in lines[1:]]
         df_statuses = pd.DataFrame(rows,columns=headers)
-        # print(df_statuses)
-
-        target_row = df_statuses.loc[df_statuses['ID'] == instance_id]
+        target_row = df_statuses.loc[df_statuses['ID'] == instance_id] # Select the target row
         if target_row.loc[0,"Status"] == "running":
             break
-
         time.sleep(1)
 
-
-
-# df_statuses.iloc[0].
 #SSH into instance
-
-#get connection details
-
-import json
 get_port_and_ip_command = f'show instance {instance_id}'
 get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command)+['--raw'],stdout=subprocess.PIPE,text=True)
 res_json = json.loads(get_port_and_ip_output.stdout)
-# instance_addr:str = res_json[0]['public_ipaddr']
-# instance_port:int = int(res_json[0]['machine_dir_ssh_port'])
-
-# Check if direct_port_end is -1, if it is, we connect to the proxy
-# if instance_port == -1:
-#     instance_addr:str = res_json[0]['ssh_host']
-#     instance_port:int = int(res_json[0]['ssh_port'])
-
 instance_addr:str = res_json[0]['ssh_host']
 instance_port:int = int(res_json[0]['ssh_port'])
 print(f'Connect via SSH:\nssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p {instance_port} root@{instance_addr} -L 8080:localhost:8080 \n')
-
-import paramiko
+time.sleep(10) # Sleep for better SSH reliability
 
 # Set up the SSH client
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
-# Connect to the remote server
 
-time.sleep(10)
+# Connect to the remote server
 client.connect(
     hostname=instance_addr,
     port=instance_port,  # default port for SSH
@@ -112,13 +88,9 @@ client.connect(
     look_for_keys=False)
 time.sleep(0.2)
 
-
 # SCP and Register Private Key for Machine Account
-from scp import SCPClient
 scp = SCPClient(client.get_transport())
 scp.put(files=['/home/bird/dataset_enrichment/credentials/autovastai','/home/bird/dataset_enrichment/credentials/autovastai.pub'],remote_path='/root/.ssh/')
-
-# ssh-add ~/.ssh/id_rsa
 shell = client.invoke_shell()
 shell.send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
 client.close()
@@ -132,8 +104,8 @@ client.connect(
 shell = client.invoke_shell()
 shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
 client.close()
-# %%
 
+# Connect and Install Dependancies
 client.connect(
     hostname=instance_addr,
     port=instance_port,  # default port for SSH
@@ -141,78 +113,102 @@ client.connect(
     pkey=pkey,
     look_for_keys=False)
 shell = client.invoke_shell()
-
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
-
 while not shell.recv_ready():
     time.sleep(1)
-
-
 with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
     while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(client):
         time.sleep(1)
 
-
-"30ac9dfe-aef1-4766-a75e-0e14dd7ac27f "
-"git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ"
-
-# Put your models here
+# Download Model
 commands = ["git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ","cat ./credentials/ckpt2"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
-
 while not shell.recv_ready():
     time.sleep(1)
-
 with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
     while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
         time.sleep(1)
 
+# %%
+
+# TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
+
+# Init UUIDs
+model_uuids= []
+experiment_uuids = []
+base_uuid = str(uuid.uuid4())
+model_uuid = "MOD:"+base_uuid
+experiment_uuid = "EXP:"+base_uuid
+model_uuids.append(model_uuid)
+experiment_uuids.append(experiment_uuid)
+
+# Start Screen
+start_screen_command = f"screen -S {model_uuid}"
+shell.send(start_screen_command + "\n")
+while not shell.recv_ready():
+    time.sleep(1)
+time.sleep(0.3)
+
+launch_args = {
+    'model_path' : '../Llama-2-7b-Chat-GPTQ',
+    'local_port' : '7777'
+}
+# Run Model
+commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']}"]
+commandstr = " && ".join(commands)
+shell.send(commandstr+"\n")
+while not shell.recv_ready():
+    time.sleep(1)
+with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+    while "Serving Flask app" not in get_tmux_content(client):
+        time.sleep(1)
+
+# Detatch Screen
+shell.send('\x01')
+time.sleep(0.1)
+shell.send('d\n')
+time.sleep(1)
+shell.send('cd ..')
+
+# 
+# Launch Experiment
+# Start Screen
+time.sleep(1)
+start_screen_command = f"screen -S {experiment_uuid}"
+shell.send(start_screen_command + "\n")
+while not shell.recv_ready():
+    time.sleep(1)
+time.sleep(0.3)
+
+launch_args = {
+    'model_path' : '../Llama-2-7b-Chat-GPTQ',
+    'local_port' : '7777'
+}
+# Run Experiment
+commands = ["cd enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
+commandstr = " && ".join(commands)
+shell.send(commandstr+"\n")
+while not shell.recv_ready():
+    time.sleep(1)
+with Loader(desc=f"Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+    while "Experiment Complete" not in get_tmux_content(client):
+        time.sleep(1)
+
+# Detatch Screen
+shell.send('\x01')
+time.sleep(0.1)
+shell.send('d\n')
+while not shell.recv_ready():
+    time.sleep(1)
+
+
+
+# Upload Results to Git
+
+
 
 # %%
 
-# Connect to the remote server
-client.connect(
-    hostname=instance_addr,
-    port=instance_port,  # default port for SSH
-    username='root',
-    key_filename='/home/bird/.ssh/id_rsa'
-)
-
-# Execute command
-# Install dependancies and download model
-commands = ["ls"]
-
-shell = client.invoke_shell()
-for cmd in commands:
-    print(f"Invoking: {cmd}")
-    shell.send(cmd+"\n")
-    while not shell.recv_ready():  # Wait for the command to complete
-        pass
-    output = shell.recv(2048).decode()  # adjust the byte number if needed
-    print(output)
-
-
-# Close the SSH client
-client.close()
-# %%
-
-# %%
-
-# SSH in and run some launch script 
-# i need to pass in a model for each gpu
-# pass in the hyperparams and stuff
-# pull repo
-# install deps
-
-# TODO: Handle when you are outbid
-
-'''
-pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel
-
-'''
-
-
-# %%

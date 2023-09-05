@@ -1,5 +1,9 @@
 # %%
-model_name = "TheBloke/Asclepius-13B-GPTQ"
+import sys
+model_name_or_path = sys.argv[1]
+local_port = sys.argv[2]
+experiment_id = sys.argv[3]
+
 import requests
 import json
 import time
@@ -31,7 +35,7 @@ def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int,
     "stopwords": []
 }
     start_time = time.time()
-    response = requests.post("http://localhost:7777/generate", json=data)
+    response = requests.post(f"http://localhost:{local_port}/generate", json=data)
     elapsed_time = time.time() - start_time
     return response.json()['text'],elapsed_time
 
@@ -55,9 +59,9 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     
 
 # Initialize CSV file and writer
-with open(f'results/{hyperparameter_searches["num_tokens"]}-{model_name.replace("/","-")}.csv', mode='x', newline='') as csv_file:
+with open(f'results/{hyperparameter_searches["num_tokens"]}-{experiment_id}.csv', mode='x', newline='') as csv_file:
     
-    fieldnames = ['prompt_index', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration',
+    fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration',
                   'reciprocate_reward', 'relevance_filter', 'rlhf_reward', 'combined_reward','prompt','generated_text']
     csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
     
