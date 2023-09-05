@@ -31,3 +31,9 @@ There are several endpoints, and we aim to have more on the way in order to incr
 "http://213.173.102.136:10401"
 "http://213.173.102.136:10402"
 ```
+
+### Connecting to Instance using the right key
+I have registered vast.AI with the machine key so we can all use it
+
+Example Command:
+`ssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p 24364 root@ssh4.vast.ai -L 8080:localhost:8080`
