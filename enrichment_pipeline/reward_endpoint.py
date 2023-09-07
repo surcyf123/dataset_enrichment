@@ -20,26 +20,27 @@ class BaseRewardModel:
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         new_count = rewards.numel()
-        if new_count and self.count + new_count:
-            new_mean, new_var = rewards.mean(), rewards.var()
-            new_weight, old_weight = new_count / (self.count + new_count), self.count / (self.count + new_count)
+        if 0 < new_count and 0 < self.count + new_count:
+            new_mean = rewards.mean()
+            new_var = rewards.var(dim=0)
+            new_weight = new_count / (self.count + new_count)
+            old_weight = self.count / (self.count + new_count)
             diff = new_mean - self.mean
             self.mean = new_weight * new_mean + old_weight * self.mean
-            self.var = new_weight * new_var + old_weight * self.var + new_weight * old_weight * diff * diff
+            self.var = (new_weight * new_var) + (old_weight * self.var) + (new_weight * old_weight) * diff * diff
             self.count = min(self.count_limit, self.count + new_count)
-        rewards = (rewards - self.mean) / (torch.sqrt(self.var) if self.var else 1)
-        return 0.5 * (1 + torch.erf(rewards / torch.sqrt(torch.tensor(2.0).to(rewards.device))))
+        rewards = rewards - self.mean
+        if self.var > 0:
+            rewards /= torch.sqrt(self.var)
+        rewards = 0.5 * (1 + torch.erf(rewards / torch.sqrt(torch.tensor([2.0])).to(rewards.device)))
+        return rewards
 
-    def apply(self, prompt: str, responses: List[str], name: str) -> torch.FloatTensor:
-        successful_completions_indices = [idx for idx, resp in enumerate(responses) if resp.is_success]
-        successful_completions = [responses[idx].completion.strip() for idx in successful_completions_indices]
-        successful_rewards = self.get_rewards(prompt, successful_completions, name)
+    def apply(self, prompt: str, responses: List[str], name: str) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+        successful_completions = responses
+        successful_rewards = self.get_rewards(prompt, successful_completions)
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
-        filled_rewards = torch.ones(len(responses), dtype=torch.float32) * torch.nan
-        filled_rewards_normalized = torch.zeros(len(responses), dtype=torch.float32)
-        for idx, reward, reward_normalized in zip(successful_completions_indices, successful_rewards, successful_rewards_normalized):
-            filled_rewards[idx], filled_rewards_normalized[idx] = reward, reward_normalized
-        return filled_rewards, filled_rewards_normalized
+        
+        return successful_rewards, successful_rewards_normalized
 
         
 class RelevanceRewardModel(BaseRewardModel):
@@ -53,20 +54,24 @@ class RelevanceRewardModel(BaseRewardModel):
         self.models = models
         self.bounds = [-0.0246, 0.3]
     
-    def get_rewards(self, prompt: str, completions: List[str]) -> Tuple[torch.FloatTensor, Dict[str, List[float]]]:
+    def get_rewards(self, prompt: str, completions: List[str]) -> Tuple[torch.FloatTensor, Dict[str, Dict[str, float]]]:
         total_rewards = torch.zeros(len(completions), dtype=torch.float32).to(self.device)
         individual_scores = {}
         for model in self.models:
             scores = model.get_rewards(prompt, completions)
-            individual_scores[model.name] = scores.tolist()
+            normalized_scores = model.normalize_rewards(scores)
+            individual_scores[model.name] = {"Raw": scores.tolist(), "Normalized": normalized_scores.tolist()}
             for i, score in enumerate(scores):
                 if score < self.bounds[self.models.index(model)]:
                     total_rewards[i] = 0.0
         
-        return (total_rewards > 0.5).float(), individual_scores
+        combined_mask = (total_rewards > 0.5).float()
+        return combined_mask, individual_scores
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        return (rewards > 0.5).float()
+    def apply(self, prompt: str, completions: List[str], name: str) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+        masks, _ = self.get_rewards(prompt, completions)
+        return masks, (masks > 0.5).float()
+
 
 
 class BertRelevanceRewardModel(BaseRewardModel):
@@ -98,7 +103,7 @@ class BertRelevanceRewardModel(BaseRewardModel):
         return float(-((completion_embedding - prompt_embedding)**2).mean()**0.5)
 
 
-class MpnetRelevenceModel(BaseRewardModel):
+class MpnetRelevanceModel(BaseRewardModel):
     diversity_model_path = "sentence-transformers/all-mpnet-base-v2"
     
     @property
@@ -108,8 +113,8 @@ class MpnetRelevenceModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
-        self.tokenizer = AutoTokenizer.from_pretrained(MpnetRelevenceModel.diversity_model_path)
-        self.model = AutoModel.from_pretrained(MpnetRelevenceModel.diversity_model_path).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(MpnetRelevanceModel.diversity_model_path)
+        self.model = AutoModel.from_pretrained(MpnetRelevanceModel.diversity_model_path).to(self.device)
 
     def get_embeddings(self, sentences: List[str]) -> torch.FloatTensor:
         encoded_input = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt").to(self.device)
@@ -149,40 +154,44 @@ def mean_pooling(model_output, attention_mask):
     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
-
 class RewardEndpoint:
     def __init__(self, gpu_id):
         self.device = torch.device(f"cuda:{gpu_id}")
-        self.reward_weights = torch.tensor([0.4, 0.6], dtype=torch.float32).to(self.device)
+        self.model_weights = {"RLHF reward model": 1.0}  # Initial weight setup; can be extended in the future.
         self.reward_functions = [OpenAssistantRewardModel(device=self.device)]
-        self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevenceModel(device=self.device)])]
+        self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)])]
         
     def calculate_total_reward(self, prompt, completions):
         results = {}
-        
         for completion in completions:
-            # Calculate rewards for each completion
-            rewards = torch.zeros(1, dtype=torch.float32).to(self.device)
-            model_scores = {"Reward Models": {}, "Masking Functions": {}}
+            model_scores, total_reward = self.get_model_scores(prompt, completion)
             
-            # Reward functions
-            for weight, reward_fn in zip(self.reward_weights, self.reward_functions):
-                reward_i = reward_fn.get_rewards(prompt, [completion])[0]
-                rewards += weight * reward_i
-                model_scores["Reward Models"][reward_fn.name] = {"Raw": reward_i.item(), "Normalized": reward_i.item()}  
-            
-            # Masking functions
-            for masking_fn in self.masking_functions:
-                mask_values, individual_scores = masking_fn.get_rewards(prompt, [completion])
-                rewards *= mask_values[0]
-                model_scores["Masking Functions"][masking_fn.name] = individual_scores 
-                
-            results[completion] = {
-                "Total Reward": rewards[0].item(),
-                **model_scores
-            }
-        
+            if isinstance(total_reward, torch.Tensor):  
+                total_reward_value = total_reward.item()
+            else:
+                total_reward_value = total_reward
+
+            results[completion] = {"Total Reward": total_reward_value, **model_scores}
         return results
+
+    def get_model_scores(self, prompt, completion):
+        model_scores = {"Rewards": {}}
+        total_reward = 1.0 
+
+        for reward_fn in self.reward_functions:
+            raw_rewards, normalized_rewards = reward_fn.apply(prompt, [completion], "augment")
+            model_name = reward_fn.name
+            model_scores["Rewards"][model_name] = [raw_rewards[0].item(), normalized_rewards[0].item()]
+            total_reward *= self.model_weights[model_name] * normalized_rewards[0].item()  # Update total reward
+
+        for masking_fn in self.masking_functions:
+            raw_scores, binary_scores = masking_fn.apply(prompt, [completion], "augment")
+            model_name = masking_fn.name
+            model_scores["Rewards"][model_name] = [raw_scores[0].item(), binary_scores[0].item()]
+            total_reward *= binary_scores[0].item()  # Multiply by the binary mask
+
+        return model_scores, total_reward
+
 
 
 
@@ -208,7 +217,7 @@ def chat():
 
 # Instantiate the reward models.
 bert_model = BertRelevanceRewardModel(device="cuda:0")
-mpnet_model = MpnetRelevenceModel(device="cuda:0")
+mpnet_model = MpnetRelevanceModel(device="cuda:0")
 relevance_model = RelevanceRewardModel(device="cuda:0", models=[bert_model, mpnet_model])
 open_assistant_model = OpenAssistantRewardModel(device="cuda:0")
 
@@ -218,10 +227,7 @@ rw = RewardEndpoint(gpu_id=0)
 # Define a prompt and a list of completions.
 prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
 completions = [
-"Paris, which is not only the most populous city of France but also a hub for art, fashion, and culture. The city is known for its iconic landmarks such as the Eiffel Tower, Louvre Museum, and Notre-Dame Cathedral. Paris is often referred to as 'The City of Light' because it was one of the first cities in the world to have street lighting.",
-"Berlin, a city that played a crucial role in world history, especially during the 20th century. Berlin is, in fact, the capital of Germany and is known for its rich history, vibrant culture, and iconic Berlin Wall which once divided the city into East and West.",
-"London, an ancient city with a modern twist. From the historic Tower of London to the modern Shard, it offers a blend of old and new. However, London is the capital of the United Kingdom and not France.",
-"Madrid, which is the heart of Spain and its largest city. Madrid is known for its grand boulevards, royal palaces, and rich repositories of European art. Yet, it's important to note that Madrid is the capital of Spain, not France.",
+"london", "Paris", "Berlin"
 ]
 
 # Calculate the rewards and scores for each completion.
