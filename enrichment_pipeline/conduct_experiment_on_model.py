@@ -38,16 +38,16 @@ def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int,
     response = requests.post(f"http://localhost:{local_port}/generate", json=data)
     elapsed_time = time.time() - start_time
     return response.json()['text'],elapsed_time
-
+# %%
 def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     '''Take the prompt, as well as the response, and return scores'''
-    url = "http://213.173.102.136:10400"
+    url = "http://90.84.239.86:40357"
 
     # Data to send
     data = {
         "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
         "prompt": original_prompt,
-        "responses": [response]
+        "completions": [response]
     }
 
     # Make the POST request
@@ -57,7 +57,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     else:
         print(f"Failed to get data: {reward_response.status_code}")
     
-
+# %%
 # Initialize CSV file and writer    
     # Write the header to the CSV file
     
@@ -69,7 +69,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
                 for top_p in hyperparameter_searches["top_p"]:
                     for top_k in hyperparameter_searches["top_k"]:
                         for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                            with open(f'results/{num_tokens}-{experiment_id}.csv', mode='x', newline='') as csv_file:
+                            with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv', mode='x', newline='') as csv_file:
                                 fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration',
                                 'reciprocate_reward', 'relevance_filter', 'rlhf_reward', 'combined_reward','prompt','generated_text']
                                 csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)

@@ -5,7 +5,7 @@ import sys
 
 model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
-gpuid = sys.argv[3]
+gpuid = str(sys.argv[3])
 
 
 from flask import Flask, request, jsonify

@@ -10,13 +10,16 @@ import json
 import paramiko
 from scp import SCPClient
 import uuid
+import threading
+from typing import Dict
+pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
 
 # Define which models we want to test
-['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ']
+
 
 
 # First we launch the instance and install dependancies
@@ -47,8 +50,9 @@ viable_models = df_instances[(df_instances['RAM'] / df_instances['N'] >= 4) & (d
 print(viable_models.head())
 
 # Pick the first instance and launch it with the right image
-model_id_chosen:str = viable_models.iloc[0].loc["ID"]
-disk_space_required:int = viable_models.iloc[0].loc["N"] * 20
+model_id_chosen:str = viable_models.iloc[3].loc["ID"]
+number_of_gpus_in_instance = viable_models.iloc[3].loc["N"]
+disk_space_required:int = viable_models.iloc[0].loc["N"] * 50
 cuda_vers = viable_models.iloc[0].loc["CUDA"]
 launch_command = f'create instance {model_id_chosen} --image pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel --disk {str(disk_space_required)}'
 launch_subprocess_output = subprocess.run(['./vast.py']+shlex.split(launch_command),stdout=subprocess.PIPE,text=True)
@@ -81,14 +85,14 @@ print(f'Connect via SSH:\nssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enri
 time.sleep(10) # Sleep for better SSH reliability
 
 # Set up the SSH client
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
-pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
+base_client = paramiko.SSHClient()
+base_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
+
 
 while True:
     try:
         # Connect to the remote server
-        client.connect(
+        base_client.connect(
             hostname=instance_addr,
             port=instance_port, 
             username='root',
@@ -103,25 +107,24 @@ while True:
         
 
 # touch ~/.no_auto_tmux and then reconnect
-# %%
-client.connect(
+base_client.connect(
     hostname=instance_addr,
     port=instance_port, 
     username='root',
     pkey=pkey,
     look_for_keys=False)
-shell = client.invoke_shell()
-shell.send('touch ~/.no_auto_tmux'+"\n")
-while not shell.recv_ready():
+base_shell = base_client.invoke_shell()
+base_shell.send('touch ~/.no_auto_tmux'+"\n")
+while not base_shell.recv_ready():
     time.sleep(1)
-client.close()
+base_client.close()
 
-# %%
+
 # SCP and Register Private Key for Machine Account on a new client with tmux
 
 install_dep_client = paramiko.SSHClient()
 install_dep_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
-pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
+
 install_dep_client.connect(
     hostname=instance_addr,
     port=instance_port, 
@@ -141,7 +144,7 @@ time.sleep(0.3)
 dep_shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
@@ -150,100 +153,141 @@ with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
     while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
         time.sleep(1)
 
-# Init UUIDs
-model_uuids= []
-experiment_uuids = []
+dep_shell.send('\x02')
+time.sleep(0.1)
+dep_shell.send('x\n')
+time.sleep(0.1)
+dep_shell.send('y\n')
 install_dep_client.close()
 
-
-# ----------------------------------------------- This can be outside the loop ^ ---------------------------------------------
-# %%
-
+# Init UUIDs
+# ------------------------------------------- I should just initialize the clients and shells, then pass it into the threading --------------------
+# Start a tmux session
+clients: Dict[int,paramiko.client.SSHClient] = {} # dict to store all the active sessions' clients
+shells: Dict[int,paramiko.Channel] = {} # dict to store all the active sessions' shells
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-def deploy_and_run_experiment(chosen_experiment_model_name,chosen_experiment_model_port,chosen_gpu_id):
-    
+models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ']
+base_port = 7777
+for i in range(number_of_gpus_in_instance):
+    chosen_experiment_model_name = models_to_test[i]
+    chosen_experiment_model_port = base_port + i
+    # pass in the clients and shells, and use the experiment id to index them.
+
+    # Initialize the shell and tmux session to be used
+    clients[i] = paramiko.SSHClient()
+    clients[i].set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
+
+    clients[i].connect(
+        hostname=instance_addr,
+        port=instance_port, 
+        username='root',
+        pkey=pkey,
+        look_for_keys=False)
+    shells[i] = clients[i].invoke_shell()
+    shells[i].send(f'tmux new -s experiment_{str(i)}' + "\n")
+print(f"Shells and Clients Initialized: {', '.join(str(a) for a in list(clients.keys()))}")
+
+# ----------------------------------------------- This can be outside the threading ^ ---------------------------------------------
+# %%
+def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,clients,shells):
     # Download Model
-    commands = ["git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat ./credentials/ckpt2"]
+    commands = ["cd /root/dataset_enrichment/",f"git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
     commandstr = " && ".join(commands)
-    shell.send(commandstr+"\n")
-    while not shell.recv_ready():
+    shells[experiment_id].send(commandstr+"\n")
+    while not shells[experiment_id].recv_ready():
         time.sleep(1)
-    with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
-        while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
+    with Loader(desc=f"{experiment_id}: Downloading Model(s)",end=f"Model(s) Ready!"):
+        while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(clients[experiment_id]):
             time.sleep(1)
 
+    # I need to launch this in its own screen
     base_uuid = str(uuid.uuid4())
-    model_uuid = "MOD:"+base_uuid
-    experiment_uuid = "EXP:"+base_uuid
-    model_uuids.append(model_uuid)
-    experiment_uuids.append(experiment_uuid)
+    model_uuid = f"{experiment_id}:MOD:"+base_uuid
+    experiment_uuid = f"{experiment_id}:EXP:"+base_uuid
 
     # Start Screen
     start_screen_command = f"screen -S {model_uuid}"
-    shell.send(start_screen_command + "\n")
-    while not shell.recv_ready():
+    shells[experiment_id].send(start_screen_command + "\n")
+    while not shells[experiment_id].recv_ready():
         time.sleep(1)
     time.sleep(0.3)
 
     launch_args = {
         'model_path' : chosen_experiment_model_name,
         'local_port' : chosen_experiment_model_port,
-        'gpuID' : chosen_gpu_id
+        'gpuID' : experiment_id
     }
     # Run Model
-    commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
     commandstr = " && ".join(commands)
-    shell.send(commandstr+"\n")
-    while not shell.recv_ready():
+    shells[experiment_id].send(commandstr+"\n")
+    while not shells[experiment_id].recv_ready():
         time.sleep(1)
-    with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
-        while "Serving Flask app" not in get_tmux_content(client):
+    with Loader(desc=f"{experiment_id}:Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+        while "Serving Flask app" not in get_tmux_content(clients[experiment_id]):
             time.sleep(1)
 
     # Detatch Screen
-    shell.send('\x01')
+    shells[experiment_id].send('\x01')
     time.sleep(0.1)
-    shell.send('d\n')
+    shells[experiment_id].send('d\n')
     time.sleep(1)
-    shell.send('cd ..'+"\n")
+    shells[experiment_id].send('cd /root/dataset_enrichment/'+"\n")
 
     # 
     # Launch Experiment
     # Start Screen
     time.sleep(1)
     start_screen_command = f"screen -S {experiment_uuid}"
-    shell.send(start_screen_command + "\n")
-    while not shell.recv_ready():
+    shells[experiment_id].send(start_screen_command + "\n")
+    while not shells[experiment_id].recv_ready():
         time.sleep(1)
     time.sleep(0.3)
 
-    launch_args = {
-        'model_path' : '../Llama-2-7b-Chat-GPTQ',
-        'local_port' : chosen_experiment_model_port
-    }
     # Run Experiment
     commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
     commandstr = " && ".join(commands)
-    shell.send(commandstr+"\n")
-    while not shell.recv_ready():
+    shells[experiment_id].send(commandstr+"\n")
+    while not shells[experiment_id].recv_ready():
         time.sleep(1)
-    with Loader(desc=f"Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
-        while "Experiment Complete" not in get_tmux_content(client):
+    with Loader(desc=f"{experiment_id}:Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+        while "Experiment Complete" not in get_tmux_content(clients[experiment_id]):
             time.sleep(1)
 
-    # Detatch Screen
-    shell.send('\x01')
-    time.sleep(0.1)
-    shell.send('d\n')
-    while not shell.recv_ready():
-        time.sleep(1)
-
+    
     # Get the experiment averages
+
+
 
     # Upload Results to Git
 
+    # Close both screens for the model, and for the experiment running
+        
+    # Detatch Screen
+    shells[experiment_id].send('\x01')
+    time.sleep(0.1)
+    shells[experiment_id].send('d\n')
+    while not shells[experiment_id].recv_ready():
+        time.sleep(1)
+    
+    
 
-    # Shut down the instance
+# (chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,clients,shells):
+# Get all the different threads going
+threads = []
+for i in range(number_of_gpus_in_instance):
+    chosen_experiment_model_name = models_to_test[i]
+    chosen_experiment_model_port = base_port + i
+    
+    t = threading.Thread(target=download_model_run_experiment_upload_results, args=(chosen_experiment_model_name, chosen_experiment_model_port, i,clients,shells))
 
+    t.start()
+    threads.append(t)
+time.sleep(0.3)
+print("All threads are running")   
+
+
+
+# Start the next one somewhere somehow
 
 # %%
