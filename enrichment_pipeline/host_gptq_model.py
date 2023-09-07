@@ -5,6 +5,7 @@ import sys
 
 model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
+gpuid = sys.argv[3]
 
 
 from flask import Flask, request, jsonify
@@ -41,7 +42,7 @@ model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
                                             local_files_only=True,
                                            torch_dtype=torch.float16,
                                            trust_remote_code=True,
-                                           device_map="cuda:0")
+                                           device_map=f"cuda:{gpuid}")
 
 def generate_output(text,max_new_tokens,temperature,top_p,top_k,repetition_penalty,stop_tokens):
     input_ids = tokenizer(text, return_tensors="pt").input_ids.to("cuda")

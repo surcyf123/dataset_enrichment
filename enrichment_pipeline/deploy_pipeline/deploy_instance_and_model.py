@@ -15,6 +15,12 @@ VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
 
+# Define which models we want to test
+['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ']
+
+
+# First we launch the instance and install dependancies
+
 # Finds all available instances
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
@@ -66,7 +72,7 @@ with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready
         time.sleep(1)
 
 #SSH into instance
-get_port_and_ip_command = f'show instance {instance_id}'
+get_port_and_ip_command = f'show instance {instance_id}' #TODO: It works but not really intended for it to be working this way
 get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command)+['--raw'],stdout=subprocess.PIPE,text=True)
 res_json = json.loads(get_port_and_ip_output.stdout)
 instance_addr:str = res_json[0]['ssh_host']
@@ -132,93 +138,100 @@ with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
     while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(client):
         time.sleep(1)
 
-# Download Model
-commands = ["git lfs clone https://huggingface.co/TheBloke/Llama-2-7b-Chat-GPTQ","cat ./credentials/ckpt2"]
-commandstr = " && ".join(commands)
-shell.send(commandstr+"\n")
-while not shell.recv_ready():
-    time.sleep(1)
-with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
-    while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
-        time.sleep(1)
-
-
-
-
 # Init UUIDs
 model_uuids= []
 experiment_uuids = []
-base_uuid = str(uuid.uuid4())
-model_uuid = "MOD:"+base_uuid
-experiment_uuid = "EXP:"+base_uuid
-model_uuids.append(model_uuid)
-experiment_uuids.append(experiment_uuid)
 
-# Start Screen
-start_screen_command = f"screen -S {model_uuid}"
-shell.send(start_screen_command + "\n")
-while not shell.recv_ready():
-    time.sleep(1)
-time.sleep(0.3)
 
-launch_args = {
-    'model_path' : '../Llama-2-7b-Chat-GPTQ',
-    'local_port' : '7777'
-}
-# Run Model
-commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']}"]
-commandstr = " && ".join(commands)
-shell.send(commandstr+"\n")
-while not shell.recv_ready():
+
+# ----------------------------------------------- This can be outside the loop ^ ---------------------------------------------
+
+
+# TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
+def deploy_and_run_experiment(chosen_experiment_model_name,chosen_experiment_model_port,chosen_gpu_id):
+    
+    # Download Model
+    commands = ["git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat ./credentials/ckpt2"]
+    commandstr = " && ".join(commands)
+    shell.send(commandstr+"\n")
+    while not shell.recv_ready():
+        time.sleep(1)
+    with Loader(desc="Downloading Model(s)",end=f"Model(s) Ready!"):
+        while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(client):
+            time.sleep(1)
+
+    base_uuid = str(uuid.uuid4())
+    model_uuid = "MOD:"+base_uuid
+    experiment_uuid = "EXP:"+base_uuid
+    model_uuids.append(model_uuid)
+    experiment_uuids.append(experiment_uuid)
+
+    # Start Screen
+    start_screen_command = f"screen -S {model_uuid}"
+    shell.send(start_screen_command + "\n")
+    while not shell.recv_ready():
+        time.sleep(1)
+    time.sleep(0.3)
+
+    launch_args = {
+        'model_path' : chosen_experiment_model_name,
+        'local_port' : chosen_experiment_model_port,
+        'gpuID' : chosen_gpu_id
+    }
+    # Run Model
+    commands = ["cd enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commandstr = " && ".join(commands)
+    shell.send(commandstr+"\n")
+    while not shell.recv_ready():
+        time.sleep(1)
+    with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+        while "Serving Flask app" not in get_tmux_content(client):
+            time.sleep(1)
+
+    # Detatch Screen
+    shell.send('\x01')
+    time.sleep(0.1)
+    shell.send('d\n')
     time.sleep(1)
-with Loader(desc=f"Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
-    while "Serving Flask app" not in get_tmux_content(client):
+    shell.send('cd ..'+"\n")
+
+    # 
+    # Launch Experiment
+    # Start Screen
+    time.sleep(1)
+    start_screen_command = f"screen -S {experiment_uuid}"
+    shell.send(start_screen_command + "\n")
+    while not shell.recv_ready():
+        time.sleep(1)
+    time.sleep(0.3)
+
+    launch_args = {
+        'model_path' : '../Llama-2-7b-Chat-GPTQ',
+        'local_port' : chosen_experiment_model_port
+    }
+    # Run Experiment
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
+    commandstr = " && ".join(commands)
+    shell.send(commandstr+"\n")
+    while not shell.recv_ready():
+        time.sleep(1)
+    with Loader(desc=f"Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+        while "Experiment Complete" not in get_tmux_content(client):
+            time.sleep(1)
+
+    # Detatch Screen
+    shell.send('\x01')
+    time.sleep(0.1)
+    shell.send('d\n')
+    while not shell.recv_ready():
         time.sleep(1)
 
-# Detatch Screen
-shell.send('\x01')
-time.sleep(0.1)
-shell.send('d\n')
-time.sleep(1)
-shell.send('cd ..'+"\n")
+    # Get the experiment averages
 
-# 
-# Launch Experiment
-# Start Screen
-time.sleep(1)
-start_screen_command = f"screen -S {experiment_uuid}"
-shell.send(start_screen_command + "\n")
-while not shell.recv_ready():
-    time.sleep(1)
-time.sleep(0.3)
-
-launch_args = {
-    'model_path' : '../Llama-2-7b-Chat-GPTQ',
-    'local_port' : '7777'
-}
-# Run Experiment
-commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
-commandstr = " && ".join(commands)
-shell.send(commandstr+"\n")
-while not shell.recv_ready():
-    time.sleep(1)
-with Loader(desc=f"Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
-    while "Experiment Complete" not in get_tmux_content(client):
-        time.sleep(1)
-
-# Detatch Screen
-shell.send('\x01')
-time.sleep(0.1)
-shell.send('d\n')
-while not shell.recv_ready():
-    time.sleep(1)
-
-# Get the experiment averages
-
-# Upload Results to Git
+    # Upload Results to Git
 
 
-# Shut down the instance
+    # Shut down the instance
 
 
 # %%
