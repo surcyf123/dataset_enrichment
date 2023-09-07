@@ -61,7 +61,7 @@ with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready
         rows = [line.split() for line in lines[1:]]
         df_statuses = pd.DataFrame(rows,columns=headers)
         target_row = df_statuses.loc[df_statuses['ID'] == instance_id] # Select the target row
-        if target_row.loc[0,"Status"] == "running":
+        if target_row.iloc[0]['Status'] == "running":
             break
         time.sleep(1)
 
@@ -197,7 +197,7 @@ launch_args = {
     'local_port' : '7777'
 }
 # Run Experiment
-commands = ["cd enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
+commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
 commandstr = " && ".join(commands)
 shell.send(commandstr+"\n")
 while not shell.recv_ready():
