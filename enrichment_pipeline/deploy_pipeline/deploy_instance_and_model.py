@@ -73,10 +73,10 @@ with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready
 
 #SSH into instance
 get_port_and_ip_command = f'show instance {instance_id}' #TODO: It works but not really intended for it to be working this way
-get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command)+['--raw'],stdout=subprocess.PIPE,text=True)
+get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(get_port_and_ip_command)+['--raw'],stdout=subprocess.PIPE,text=True)
 res_json = json.loads(get_port_and_ip_output.stdout)
-instance_addr:str = res_json[0]['ssh_host']
-instance_port:int = int(res_json[0]['ssh_port'])
+instance_addr:str = res_json['ssh_host']
+instance_port:int = int(res_json['ssh_port'])
 print(f'Connect via SSH:\nssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p {instance_port} root@{instance_addr} -L 8080:localhost:8080 \n')
 time.sleep(10) # Sleep for better SSH reliability
 
@@ -90,7 +90,7 @@ while True:
         # Connect to the remote server
         client.connect(
             hostname=instance_addr,
-            port=instance_port,  # default port for SSH
+            port=instance_port, 
             username='root',
             pkey=pkey,
             look_for_keys=False)
@@ -102,50 +102,62 @@ while True:
         time.sleep(2)
         
 
-# SCP and Register Private Key for Machine Account
-scp = SCPClient(client.get_transport())
-scp.put(files=['/home/bird/dataset_enrichment/credentials/autovastai','/home/bird/dataset_enrichment/credentials/autovastai.pub'],remote_path='/root/.ssh/')
-shell = client.invoke_shell()
-shell.send('chmod 600 ~/.ssh/autovastai && chmod 600 ~/.ssh/autovastai.pub' + "\n")
-time.sleep(0.3)
-shell.send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
-client.close()
-time.sleep(0.3)
+# touch ~/.no_auto_tmux and then reconnect
+# %%
 client.connect(
     hostname=instance_addr,
-    port=instance_port,  # default port for SSH
+    port=instance_port, 
     username='root',
     pkey=pkey,
     look_for_keys=False)
 shell = client.invoke_shell()
-shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
-client.close()
-
-# Connect and Install Dependancies
-client.connect(
-    hostname=instance_addr,
-    port=instance_port,  # default port for SSH
-    username='root',
-    pkey=pkey,
-    look_for_keys=False)
-shell = client.invoke_shell()
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
-commandstr = " && ".join(commands)
-shell.send(commandstr+"\n")
+shell.send('touch ~/.no_auto_tmux'+"\n")
 while not shell.recv_ready():
     time.sleep(1)
+client.close()
+
+# %%
+# SCP and Register Private Key for Machine Account on a new client with tmux
+
+install_dep_client = paramiko.SSHClient()
+install_dep_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
+pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
+install_dep_client.connect(
+    hostname=instance_addr,
+    port=instance_port, 
+    username='root',
+    pkey=pkey,
+    look_for_keys=False)
+dep_shell = install_dep_client.invoke_shell()
+dep_shell.send('tmux new -s install_deps' + "\n")
+
+scp = SCPClient(install_dep_client.get_transport())
+scp.put(files=['/home/bird/dataset_enrichment/credentials/autovastai','/home/bird/dataset_enrichment/credentials/autovastai.pub'],remote_path='/root/.ssh/')
+dep_shell.send('chmod 600 ~/.ssh/autovastai && chmod 600 ~/.ssh/autovastai.pub' + "\n")
+time.sleep(0.3)
+dep_shell.send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
+
+time.sleep(0.3)
+dep_shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
+# Connect and Install Dependancies
+time.sleep(0.3)
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd dataset_enrichment','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat ./credentials/ckpt1"]
+commandstr = " && ".join(commands)
+dep_shell.send(commandstr+"\n")
+while not dep_shell.recv_ready():
+    time.sleep(1)
 with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
-    while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(client):
+    while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
         time.sleep(1)
 
 # Init UUIDs
 model_uuids= []
 experiment_uuids = []
-
+install_dep_client.close()
 
 
 # ----------------------------------------------- This can be outside the loop ^ ---------------------------------------------
-
+# %%
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
 def deploy_and_run_experiment(chosen_experiment_model_name,chosen_experiment_model_port,chosen_gpu_id):
