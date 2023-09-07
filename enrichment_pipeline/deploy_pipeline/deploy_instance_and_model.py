@@ -213,6 +213,12 @@ shell.send('d\n')
 while not shell.recv_ready():
     time.sleep(1)
 
+# Get the experiment averages
+
 # Upload Results to Git
+
+
+# Shut down the instance
+
 
 # %%
