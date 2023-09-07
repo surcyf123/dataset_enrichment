@@ -14,6 +14,7 @@ import threading
 from typing import Dict
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
+active_branch = "ethan/road_to_0.2"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
@@ -144,7 +145,7 @@ time.sleep(0.3)
 dep_shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat root/dataset_enrichment/credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
