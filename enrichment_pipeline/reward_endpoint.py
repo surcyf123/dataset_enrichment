@@ -42,7 +42,6 @@ class BaseRewardModel:
         
         return successful_rewards, successful_rewards_normalized
 
-        
 class RelevanceRewardModel(BaseRewardModel):
     @property
     def name(self) -> str: 
@@ -52,26 +51,36 @@ class RelevanceRewardModel(BaseRewardModel):
         super().__init__()
         self.device = device
         self.models = models
-        self.bounds = [-0.0246, 0.3]
+        self.bounds = [-0.0246, 0.3]  # thresholds for the models
     
     def get_rewards(self, prompt: str, completions: List[str]) -> Tuple[torch.FloatTensor, Dict[str, Dict[str, float]]]:
         total_rewards = torch.ones(len(completions), dtype=torch.float32).to(self.device)
         individual_scores = {}
+        
         for model in self.models:
             scores = model.get_rewards(prompt, completions)
-            individual_scores[model.name] = {"Raw": scores.tolist()}
-            for i, score in enumerate(scores):
-                if score < self.bounds[self.models.index(model)]:
+            threshold = self.bounds[self.models.index(model)]
+            binary_scores = [1.0 if score > threshold else 0.0 for score in scores]
+            
+            individual_scores[model.name] = {"Raw": scores.tolist(), "Binary": binary_scores}
+            
+            # If any model produces a binary score of 0 for a completion, set its total reward to 0.
+            for i, bin_score in enumerate(binary_scores):
+                if bin_score == 0.0:
                     total_rewards[i] = 0.0
 
         return total_rewards, individual_scores
 
-
-    def apply(self, prompt: str, completions: List[str], name: str) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
-        masks, individual_scores = self.get_rewards(prompt, completions)
-        return masks, (masks > 0.5).float(), individual_scores
-
-
+    def apply(self, prompt: str, completions: List[str], name: str) -> Tuple[torch.FloatTensor, Dict[str, float]]:
+        total_scores, individual_scores = self.get_rewards(prompt, completions)
+        binary_scores = (total_scores > 0.5).float().tolist()  # Convert tensor to list
+        
+        # Update individual_scores with Binary scores
+        for model in self.models:
+            threshold = self.bounds[self.models.index(model)]
+            individual_scores[model.name]["Binary"] = 1.0 if individual_scores[model.name]["Raw"][0] > threshold else 0.0
+        
+        return total_scores, binary_scores, individual_scores
 
 
 class BertRelevanceRewardModel(BaseRewardModel):
@@ -139,8 +148,6 @@ class MpnetRelevanceModel(BaseRewardModel):
         return rewards
 
 
-
-
 class OpenAssistantRewardModel(BaseRewardModel):
     reward_model_name = "OpenAssistant/reward-model-deberta-v3-large-v2"
     @property
@@ -167,35 +174,38 @@ def mean_pooling(model_output, attention_mask):
 class RewardEndpoint:
     def __init__(self, gpu_id):
         self.device = torch.device(f"cuda:{gpu_id}")
-        self.model_weights = {"RLHF reward model": 1.0}
+        self.model_weights = {"RLHF": 1.0}  # This can be expanded as needed
         self.reward_functions = [OpenAssistantRewardModel(device=self.device)]
         self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)])]
 
     def calculate_total_reward(self, prompt, completions):
         results = {}
         for completion in completions:
-            model_scores, total_reward = self.get_model_scores(prompt, completion)
-            results[completion] = {"Total Reward": total_reward, "Model Rewards": model_scores}
+            results[completion] = self.get_model_scores(prompt, completion)
         return results
 
     def get_model_scores(self, prompt, completion):
-        model_scores = {}
-
+        completion_results = {}
+        total_reward = 1.0
+        
+        # Process reward functions
         for reward_fn in self.reward_functions:
             raw_rewards, normalized_rewards = reward_fn.apply(prompt, [completion], "augment")
-            model_name = reward_fn.name
-            model_scores[model_name] = {"Raw": raw_rewards[0].item(), "Normalized": normalized_rewards[0].item()}
-            total_reward = self.model_weights[model_name] * normalized_rewards[0].item()
+            model_name = reward_fn.name.split()[0]  # Taking the first word of the model name for brevity
+            completion_results[model_name] = [raw_rewards[0].item(), normalized_rewards[0].item()]
+            total_reward *= normalized_rewards[0].item() * self.model_weights.get(model_name, 1.0)
 
+        # Process masking functions
         for masking_fn in self.masking_functions:
-            raw_scores, binary_scores, individual_scores = masking_fn.apply(prompt, [completion], "augment")
-            model_name = masking_fn.name
-            model_scores[model_name] = {"Total": {"Raw": raw_scores[0].item(), "Binary": binary_scores[0].item()}, **individual_scores}
-            total_reward *= binary_scores[0].item() 
+            _, _, individual_scores = masking_fn.apply(prompt, [completion], "augment")
+            for model, scores in individual_scores.items():
+                short_model_name = model.split()[0]  # Taking the first word of the model name for brevity
+                completion_results[short_model_name] = [scores["Raw"][0], scores["Binary"]]
+                total_reward *= scores["Binary"]  # Multiply by the binary score of the mask
 
-        return model_scores, total_reward
-
-
+        completion_results["Total"] = total_reward
+        
+        return completion_results
 
 
 def parse_arguments():
