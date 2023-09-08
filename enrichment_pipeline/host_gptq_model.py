@@ -23,7 +23,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name_or_path,
 class StoppingCriteriaSub(StoppingCriteria):
     def __init__(self, stops = []):
         super().__init__()
-        self.stops = [stop.to("cuda") for stop in stops]
+        self.stops = [stop.to("cuda:{gpuid}") for stop in stops]
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor):
         for stop in self.stops:
@@ -45,7 +45,7 @@ model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
                                            device_map=f"cuda:{gpuid}")
 
 def generate_output(text,max_new_tokens,temperature,top_p,top_k,repetition_penalty,stop_tokens):
-    input_ids = tokenizer(text, return_tensors="pt").input_ids.to("cuda")
+    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(f"cuda:{gpuid}")
     tokens = model.generate(
         inputs=input_ids,
         max_new_tokens=max_new_tokens,
