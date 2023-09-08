@@ -268,18 +268,13 @@ class RewardEndpoint:
         ]
 
     def calculate_total_reward(self, prompt, completions):
-        results = {}
+        results = []
 
         for completion in completions:
             model_scores, total_reward = self.get_model_scores(prompt, completion)
-            # Truncate the completion for the output dictionary
-            # Remove the splice if you want to see the whole completion in the results dict, I'm not sure what will work best for your logging, I'm not even sure if logging the completion here is necessary
-            truncated_completion = completion[:35]
+            model_scores["Total Reward"] = total_reward
+            results.append(model_scores)
 
-            results[truncated_completion] = { 
-                "Total Reward": total_reward,
-                "Details": model_scores
-            }
         return results
 
     def get_model_scores(self, prompt, completion):
