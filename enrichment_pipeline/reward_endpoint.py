@@ -7,6 +7,18 @@ from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
 
+
+# TODO 
+# identify type of question when received, currently everything is "augment"
+# add task validator
+# look into optimizations for the reward models (quantization, clearning cache, make more memory efficient/faster)
+# implement nsfw filter
+# how to fix the initial high variability of normalization after reset because count = 0?
+# improve loading speed of the models (also through quantization? test how quant models affect scores and what the variability is)
+# add more logging for checks/debugging; try, excepts; improved error codes for API call fails
+# organize dict into reward models and masks
+
+
 class BaseRewardModel:
     
     @property
@@ -244,20 +256,27 @@ def mean_pooling(model_output, attention_mask):
 class RewardEndpoint:
     def __init__(self, gpu_id):
         self.device = torch.device(f"cuda:{gpu_id}")
-        self.model_weights = {"RLHF": .1, "DPO": .9} #, "Reciprocate": .2} 
+        self.model_weights = {"RLHF": .4, "DPO": .3, "Reciprocate": .3} 
         self.reward_functions = [
             OpenAssistantRewardModel(device=self.device),
-            # ReciprocateRewardModel(device=self.device)
-            DirectPreferenceRewardModel(device=self.device) 
+            ReciprocateRewardModel(device=self.device),
+            DirectPreferenceRewardModel(device=self.device),
         ]
-        self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)])]
+        self.masking_functions = [
+        RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)]),
+        # TaskValidator()
+        ]
 
     def calculate_total_reward(self, prompt, completions):
         results = {}
 
         for completion in completions:
             model_scores, total_reward = self.get_model_scores(prompt, completion)
-            results[completion] = {
+            # Truncate the completion for the output dictionary
+            # Remove the splice if you want to see the whole completion in the results dict, I'm not sure what will work best for your logging, I'm not even sure if logging the completion here is necessary
+            truncated_completion = completion[:35]
+
+            results[truncated_completion] = { 
                 "Total Reward": total_reward,
                 "Details": model_scores
             }
