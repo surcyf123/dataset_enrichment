@@ -330,22 +330,16 @@ def chat():
     except Exception as e:
         return str(e), 500
 
-### testing!
-
-# Create RewardEndpoint object
-rw = RewardEndpoint(gpu_id=0)
-
-# Define a prompt and a list of completions.
-prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
-completions = [
-"london", "Paris", "Berlin"
-]
-
-# Calculate the rewards and scores for each completion.
-resulting_dict = rw.calculate_total_reward(prompt, completions)
-print(resulting_dict)
-
-
 if __name__ == "__main__":
     args = parse_arguments()
+    rw = RewardEndpoint(gpu_id=args.gpu)
+
+    # Testing on launch
+    prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
+    completions = [
+    "london", "Paris", "Berlin"
+    ]
+    resulting_dict = rw.calculate_total_reward(prompt, completions)
+    print(resulting_dict)
+
     app.run(host="0.0.0.0", port=args.port, threaded=False, debug=False)
