@@ -55,22 +55,22 @@ class RelevanceRewardModel(BaseRewardModel):
         self.bounds = [-0.0246, 0.3]
     
     def get_rewards(self, prompt: str, completions: List[str]) -> Tuple[torch.FloatTensor, Dict[str, Dict[str, float]]]:
-        total_rewards = torch.zeros(len(completions), dtype=torch.float32).to(self.device)
+        total_rewards = torch.ones(len(completions), dtype=torch.float32).to(self.device)
         individual_scores = {}
         for model in self.models:
             scores = model.get_rewards(prompt, completions)
-            normalized_scores = model.normalize_rewards(scores)
-            individual_scores[model.name] = {"Raw": scores.tolist(), "Normalized": normalized_scores.tolist()}
+            individual_scores[model.name] = {"Raw": scores.tolist()}
             for i, score in enumerate(scores):
                 if score < self.bounds[self.models.index(model)]:
                     total_rewards[i] = 0.0
-        
-        combined_mask = (total_rewards > 0.5).float()
-        return combined_mask, individual_scores
+
+        return total_rewards, individual_scores
+
 
     def apply(self, prompt: str, completions: List[str], name: str) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
-        masks, _ = self.get_rewards(prompt, completions)
-        return masks, (masks > 0.5).float()
+        masks, individual_scores = self.get_rewards(prompt, completions)
+        return masks, (masks > 0.5).float(), individual_scores
+
 
 
 
@@ -102,6 +102,10 @@ class BertRelevanceRewardModel(BaseRewardModel):
         prompt_embedding = self.get_embedding(prompt)
         return float(-((completion_embedding - prompt_embedding)**2).mean()**0.5)
 
+    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        return rewards
+
+
 
 class MpnetRelevanceModel(BaseRewardModel):
     diversity_model_path = "sentence-transformers/all-mpnet-base-v2"
@@ -125,10 +129,16 @@ class MpnetRelevanceModel(BaseRewardModel):
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
-    def reward_single(self, prompt: str, completion: str) -> float:
+    def reward_single(self, prompt: str, completion: str) -> torch.FloatTensor:
         embeddings = self.get_embeddings([completion])
         prompt_embed = self.get_embeddings([prompt])
-        return torch.abs(pairwise_cosine_similarity(prompt_embed, embeddings)).item()
+        similarity = pairwise_cosine_similarity(prompt_embed, embeddings)
+        return torch.abs(similarity)
+
+    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        return rewards
+
+
 
 
 class OpenAssistantRewardModel(BaseRewardModel):
@@ -157,38 +167,31 @@ def mean_pooling(model_output, attention_mask):
 class RewardEndpoint:
     def __init__(self, gpu_id):
         self.device = torch.device(f"cuda:{gpu_id}")
-        self.model_weights = {"RLHF reward model": 1.0}  # Initial weight setup; can be extended in the future.
+        self.model_weights = {"RLHF reward model": 1.0}
         self.reward_functions = [OpenAssistantRewardModel(device=self.device)]
         self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)])]
-        
+
     def calculate_total_reward(self, prompt, completions):
         results = {}
         for completion in completions:
             model_scores, total_reward = self.get_model_scores(prompt, completion)
-            
-            if isinstance(total_reward, torch.Tensor):  
-                total_reward_value = total_reward.item()
-            else:
-                total_reward_value = total_reward
-
-            results[completion] = {"Total Reward": total_reward_value, **model_scores}
+            results[completion] = {"Total Reward": total_reward, "Model Rewards": model_scores}
         return results
 
     def get_model_scores(self, prompt, completion):
-        model_scores = {"Rewards": {}}
-        total_reward = 1.0 
+        model_scores = {}
 
         for reward_fn in self.reward_functions:
             raw_rewards, normalized_rewards = reward_fn.apply(prompt, [completion], "augment")
             model_name = reward_fn.name
-            model_scores["Rewards"][model_name] = [raw_rewards[0].item(), normalized_rewards[0].item()]
-            total_reward *= self.model_weights[model_name] * normalized_rewards[0].item()  # Update total reward
+            model_scores[model_name] = {"Raw": raw_rewards[0].item(), "Normalized": normalized_rewards[0].item()}
+            total_reward = self.model_weights[model_name] * normalized_rewards[0].item()
 
         for masking_fn in self.masking_functions:
-            raw_scores, binary_scores = masking_fn.apply(prompt, [completion], "augment")
+            raw_scores, binary_scores, individual_scores = masking_fn.apply(prompt, [completion], "augment")
             model_name = masking_fn.name
-            model_scores["Rewards"][model_name] = [raw_scores[0].item(), binary_scores[0].item()]
-            total_reward *= binary_scores[0].item()  # Multiply by the binary mask
+            model_scores[model_name] = {"Total": {"Raw": raw_scores[0].item(), "Binary": binary_scores[0].item()}, **individual_scores}
+            total_reward *= binary_scores[0].item() 
 
         return model_scores, total_reward
 
@@ -197,7 +200,7 @@ class RewardEndpoint:
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default=8008, type=int)
+    parser.add_argument("--port", default=30000, type=int)
     parser.add_argument("--gpu", default=0, type=int)
     return parser.parse_args()
 
@@ -207,19 +210,18 @@ def chat():
     data = request.get_json()
     if data.get("verify_token") not in ["SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n"]:
         return jsonify({"error": "Invalid authentication token"}), 401
-    prompt, responses = data.get("prompt"), data.get("responses")
-    if not (prompt and responses): return "No prompt or responses"
+
+    prompt, completions = data.get("prompt"), data.get("completions")
+    if not (prompt and completions):
+        return jsonify({"error": "No prompt or completions provided"}), 400
+
     try:
-        rewards, scores = rw.calculate_total_reward(prompt, responses)
-        return jsonify({"rewards": rewards.tolist(), "reward_details": scores})
-    except Exception as e: return str(e)
+        result = rw.calculate_total_reward(prompt, completions)
+        return jsonify(result)
+    except Exception as e:
+        return str(e), 500
 
-
-# Instantiate the reward models.
-bert_model = BertRelevanceRewardModel(device="cuda:0")
-mpnet_model = MpnetRelevanceModel(device="cuda:0")
-relevance_model = RelevanceRewardModel(device="cuda:0", models=[bert_model, mpnet_model])
-open_assistant_model = OpenAssistantRewardModel(device="cuda:0")
+### testing!
 
 # Create RewardEndpoint object
 rw = RewardEndpoint(gpu_id=0)
@@ -237,5 +239,4 @@ print(resulting_dict)
 
 if __name__ == "__main__":
     args = parse_arguments()
-    rw = RewardEndpoint(args.gpu)
     app.run(host="0.0.0.0", port=args.port, threaded=False, debug=False)
