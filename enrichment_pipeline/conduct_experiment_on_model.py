@@ -38,8 +38,6 @@ def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int,
     start_time = time.time()
     response = requests.post(f"http://localhost:{local_port}/generate", json=data)
     elapsed_time = time.time() - start_time
-    print(response)
-    print(response.json())
     return response.json()['text'],elapsed_time
 # %%
 def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
@@ -72,7 +70,7 @@ for i, prompt in tqdm(enumerate(prompts)):
             for top_p in hyperparameter_searches["top_p"]:
                 for top_k in hyperparameter_searches["top_k"]:
                     for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                        with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv', mode='x', newline='') as csv_file:
+                        with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv', mode='a', newline='') as csv_file:
                             fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
                             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                             csv_writer.writeheader()
