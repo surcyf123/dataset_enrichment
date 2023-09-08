@@ -18,7 +18,7 @@ active_branch = "ethan/road_to_0.2"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
-
+reward_endpoints = ["http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378"]
 # Define which models we want to test
 
 
@@ -145,7 +145,7 @@ time.sleep(0.3)
 dep_shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat root/dataset_enrichment/credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
@@ -189,10 +189,11 @@ for i in range(number_of_gpus_in_instance):
 print(f"Shells and Clients Initialized: {', '.join(str(a) for a in list(clients.keys()))}")
 
 # ----------------------------------------------- This can be outside the threading ^ ---------------------------------------------
-# %%
+
 def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,clients,shells):
     # Download Model
-    commands = ["cd /root/dataset_enrichment/",f"git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
+    # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     shells[experiment_id].send(commandstr+"\n")
     while not shells[experiment_id].recv_ready():
@@ -216,10 +217,11 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     launch_args = {
         'model_path' : chosen_experiment_model_name,
         'local_port' : chosen_experiment_model_port,
-        'gpuID' : experiment_id
+        'gpuID' : experiment_id,
+        'reward_endpoint' : reward_endpoints[experiment_id]
     }
     # Run Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path'].replace('TheBloke/', '')} {launch_args['local_port']} {launch_args['gpuID']}"]
     commandstr = " && ".join(commands)
     shells[experiment_id].send(commandstr+"\n")
     while not shells[experiment_id].recv_ready():
@@ -246,12 +248,12 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.3)
 
     # Run Experiment
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid} {launch_args['reward_endpoint']}"]
     commandstr = " && ".join(commands)
     shells[experiment_id].send(commandstr+"\n")
     while not shells[experiment_id].recv_ready():
         time.sleep(1)
-    with Loader(desc=f"{experiment_id}:Running Experiment: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
+    with Loader(desc=f"{experiment_id}:Running Experiment: {model_uuid}",end=f"Model {model_uuid} Done: {launch_args['local_port']}!"):
         while "Experiment Complete" not in get_tmux_content(clients[experiment_id]):
             time.sleep(1)
 
@@ -290,5 +292,6 @@ print("All threads are running")
 
 
 # Start the next one somewhere somehow
+
 
 # %%

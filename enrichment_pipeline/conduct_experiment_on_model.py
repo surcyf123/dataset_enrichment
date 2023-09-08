@@ -3,6 +3,7 @@ import sys
 model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
 experiment_id = sys.argv[3]
+reward_endpoint = sys.argv[4]
 
 import requests
 import json
@@ -41,7 +42,7 @@ def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int,
 # %%
 def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     '''Take the prompt, as well as the response, and return scores'''
-    url = "http://90.84.239.86:40357"
+    url = reward_endpoint
 
     # Data to send
     data = {
