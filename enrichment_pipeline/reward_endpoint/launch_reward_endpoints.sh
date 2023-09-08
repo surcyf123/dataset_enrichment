@@ -2,7 +2,7 @@
 
 START_PORT=30000
 NUM_INSTANCES=4 # Change to the number of GPUs you have / number of reward_instances you want to run.
-declare -i EXTERNAL_PORT=40594 #change this if you want to get a list of the endpoint urls
+declare -i EXTERNAL_PORT=45654 #change this if you want to get a list of the endpoint urls
 NAME=$START_PORT
 
 # Get the external IP address
