@@ -2,11 +2,10 @@ import torch
 from typing import Dict, Tuple, List
 from flask import Flask, request, jsonify
 import argparse
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModel
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModel, AutoModelForCausalLM
 from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
-import pprint
 
 class BaseRewardModel:
     
@@ -194,6 +193,48 @@ class ReciprocateRewardModel(BaseRewardModel):
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
+class DirectPreferenceRewardModel(BaseRewardModel):
+    reward_model_name = "cerebras/btlm-3b-8k-base"
+
+    @property
+    def name(self) -> str:
+        return "DPO"
+
+    def __init__(self, device: str):
+        super().__init__()
+        self.device = device
+        self.penalty = 1.2
+        self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModel.reward_model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModel.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
+
+    def reward_single(self, prompt: str, completion: str) -> float:
+        with torch.no_grad():
+            combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
+            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+            
+            if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
+                return -11.  
+
+            if self.tokenizer.model_max_length < len(combined):
+                combined = combined[:self.tokenizer.model_max_length]
+
+            labels = combined.clone()
+            labels[:len(prompt_part)] = -100
+            labels = labels[1:]
+            labels[labels == -100] = 0
+
+            logits = self.model(combined.unsqueeze(0)).logits[:, :-1, :]
+            logits = logits.log_softmax(-1)
+            per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(0).unsqueeze(2)).squeeze(2)
+            mask = (labels != -100).unsqueeze(0)  # This will change the mask shape to [1, 42]
+            reward = (per_token_logps[mask]).mean()
+
+            if torch.isnan(reward) or torch.isinf(reward):
+                return -11.  
+            return reward.item()
+
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
@@ -203,10 +244,11 @@ def mean_pooling(model_output, attention_mask):
 class RewardEndpoint:
     def __init__(self, gpu_id):
         self.device = torch.device(f"cuda:{gpu_id}")
-        self.model_weights = {"RLHF": .8, "Reciprocate": .2} 
+        self.model_weights = {"RLHF": .1, "DPO": .9} #, "Reciprocate": .2} 
         self.reward_functions = [
             OpenAssistantRewardModel(device=self.device),
-            ReciprocateRewardModel(device=self.device)
+            # ReciprocateRewardModel(device=self.device)
+            DirectPreferenceRewardModel(device=self.device) 
         ]
         self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)])]
 
