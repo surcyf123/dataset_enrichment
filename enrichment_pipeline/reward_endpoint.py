@@ -88,7 +88,7 @@ class BertRelevanceRewardModel(BaseRewardModel):
     
     @property
     def name(self) -> str:
-        return "Bert Relevance Model"
+        return "Bert"
     
     def __init__(self, device: str):
         super().__init__()
@@ -121,7 +121,7 @@ class MpnetRelevanceModel(BaseRewardModel):
     
     @property
     def name(self) -> str:
-        return "MPNet Relevance Model"
+        return "MPNet"
     
     def __init__(self, device: str):
         super().__init__()
@@ -152,7 +152,7 @@ class OpenAssistantRewardModel(BaseRewardModel):
     reward_model_name = "OpenAssistant/reward-model-deberta-v3-large-v2"
     @property
     def name(self) -> str:
-        return "RLHF reward model"
+        return "RLHF"
 
     def __init__(self, device: str):
         super().__init__()
@@ -166,6 +166,35 @@ class OpenAssistantRewardModel(BaseRewardModel):
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
+class ReciprocateRewardModel(BaseRewardModel):
+
+    reward_model_path = "reciprocate/gpt-j_rm_format-oa"
+    revision = "501f895"
+
+    @property
+    def name(self) -> str:
+        return "Reciprocate"
+
+    def __init__(self, device: str):
+        super().__init__()
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(ReciprocateRewardModel.reward_model_path, revision=ReciprocateRewardModel.revision)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            ReciprocateRewardModel.reward_model_path,
+            revision=ReciprocateRewardModel.revision,
+            torch_dtype=torch.float16
+        ).to(self.device)
+
+    def reward_single(self, prompt: str, completion: str) -> float:
+        with torch.no_grad():
+            message = f"{prompt}</s>{completion}</s>"
+            inputs = self.tokenizer(message, return_tensors="pt", truncation=True).to(self.device)
+            return float(self.model(**inputs).logits[0].item())
+
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
+
+
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
@@ -174,38 +203,47 @@ def mean_pooling(model_output, attention_mask):
 class RewardEndpoint:
     def __init__(self, gpu_id):
         self.device = torch.device(f"cuda:{gpu_id}")
-        self.model_weights = {"RLHF": 1.0}  # This can be expanded as needed
-        self.reward_functions = [OpenAssistantRewardModel(device=self.device)]
+        self.model_weights = {"RLHF": .8, "Reciprocate": .2} 
+        self.reward_functions = [
+            OpenAssistantRewardModel(device=self.device),
+            ReciprocateRewardModel(device=self.device)
+        ]
         self.masking_functions = [RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)])]
 
     def calculate_total_reward(self, prompt, completions):
         results = {}
+
         for completion in completions:
-            results[completion] = self.get_model_scores(prompt, completion)
+            model_scores, total_reward = self.get_model_scores(prompt, completion)
+            results[completion] = {
+                "Total Reward": total_reward,
+                "Details": model_scores
+            }
         return results
 
     def get_model_scores(self, prompt, completion):
         completion_results = {}
-        total_reward = 1.0
-        
-        # Process reward functions
+
+        # 1. Calculate total reward from all reward functions
+        total_weighted_rewards = 0
         for reward_fn in self.reward_functions:
             raw_rewards, normalized_rewards = reward_fn.apply(prompt, [completion], "augment")
-            model_name = reward_fn.name.split()[0]  # Taking the first word of the model name for brevity
-            completion_results[model_name] = [raw_rewards[0].item(), normalized_rewards[0].item()]
-            total_reward *= normalized_rewards[0].item() * self.model_weights.get(model_name, 1.0)
+            weight = self.model_weights.get(reward_fn.name, 1.0)
+            total_weighted_rewards += weight * normalized_rewards[0].item()
+            completion_results[reward_fn.name] = [raw_rewards[0].item(), normalized_rewards[0].item()]
 
-        # Process masking functions
+        # 2. Calculate overall mask product
+        mask_product = 1.0
         for masking_fn in self.masking_functions:
             _, _, individual_scores = masking_fn.apply(prompt, [completion], "augment")
             for model, scores in individual_scores.items():
-                short_model_name = model.split()[0]  # Taking the first word of the model name for brevity
-                completion_results[short_model_name] = [scores["Raw"][0], scores["Binary"]]
-                total_reward *= scores["Binary"]  # Multiply by the binary score of the mask
+                completion_results[model] = [scores["Raw"][0], scores["Binary"]]
+                mask_product *= scores["Binary"]
 
-        completion_results["Total"] = total_reward
-        
-        return completion_results
+        # 3. Final total reward
+        total_reward = total_weighted_rewards * mask_product
+
+        return completion_results, total_reward
 
 
 def parse_arguments():
