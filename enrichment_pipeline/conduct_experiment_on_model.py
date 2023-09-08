@@ -62,43 +62,43 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
 # Initialize CSV file and writer    
     # Write the header to the CSV file
     
-    
-    # Loop through the prompts and hyperparameters
-    for i, prompt in tqdm(enumerate(prompts)):
-        for num_tokens in hyperparameter_searches["num_tokens"]:
-            for temperature in hyperparameter_searches["temperature"]:
-                for top_p in hyperparameter_searches["top_p"]:
-                    for top_k in hyperparameter_searches["top_k"]:
-                        for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                            with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv', mode='x', newline='') as csv_file:
-                                fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration',
-                                'reciprocate_reward', 'relevance_filter', 'rlhf_reward', 'combined_reward','prompt','generated_text']
-                                csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-                                csv_writer.writeheader()
-                                generated_text, duration = call_model_with_params(prompt, temperature, top_p, top_k, repetition_penalty)
-                                reward_scores = get_scores_from_reward_model(prompt, generated_text)
-                                
-                                reciprocate_reward = reward_scores["reward_details"]["reciprocate_reward_model"][0]
-                                relevance_filter = reward_scores["reward_details"]["relevance_filter"][0]
-                                rlhf_reward = reward_scores["reward_details"]["rlhf_reward_model"][0]
-                                combined_reward = reward_scores["rewards"][0]
-                                
-                                # Write a row to the CSV file
-                                csv_writer.writerow({
-                                    'prompt_index': i,
-                                    'num_tokens' : num_tokens,
-                                    'temperature': temperature,
-                                    'top_p': top_p,
-                                    'top_k': top_k,
-                                    'repetition_penalty': repetition_penalty,
-                                    'duration': duration,
-                                    'reciprocate_reward': reciprocate_reward,
-                                    'relevance_filter': relevance_filter,
-                                    'rlhf_reward': rlhf_reward,
-                                    'combined_reward': combined_reward,
-                                    'prompt' : prompt,
-                                    'generated_text' : generated_text
-                                })
-                    
+print("Experiment Starting")
+# Loop through the prompts and hyperparameters
+for i, prompt in tqdm(enumerate(prompts)):
+    for num_tokens in hyperparameter_searches["num_tokens"]:
+        for temperature in hyperparameter_searches["temperature"]:
+            for top_p in hyperparameter_searches["top_p"]:
+                for top_k in hyperparameter_searches["top_k"]:
+                    for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
+                        with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv', mode='x', newline='') as csv_file:
+                            fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration',
+                            'reciprocate_reward', 'relevance_filter', 'rlhf_reward', 'combined_reward','prompt','generated_text']
+                            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                            csv_writer.writeheader()
+                            generated_text, duration = call_model_with_params(prompt, temperature, top_p, top_k, repetition_penalty)
+                            reward_scores = get_scores_from_reward_model(prompt, generated_text)
+                            
+                            reciprocate_reward = reward_scores["reward_details"]["reciprocate_reward_model"][0]
+                            relevance_filter = reward_scores["reward_details"]["relevance_filter"][0]
+                            rlhf_reward = reward_scores["reward_details"]["rlhf_reward_model"][0]
+                            combined_reward = reward_scores["rewards"][0]
+                            
+                            # Write a row to the CSV file
+                            csv_writer.writerow({
+                                'prompt_index': i,
+                                'num_tokens' : num_tokens,
+                                'temperature': temperature,
+                                'top_p': top_p,
+                                'top_k': top_k,
+                                'repetition_penalty': repetition_penalty,
+                                'duration': duration,
+                                'reciprocate_reward': reciprocate_reward,
+                                'relevance_filter': relevance_filter,
+                                'rlhf_reward': rlhf_reward,
+                                'combined_reward': combined_reward,
+                                'prompt' : prompt,
+                                'generated_text' : generated_text
+                            })
+print("Experiment Complete")                    
                     
     
