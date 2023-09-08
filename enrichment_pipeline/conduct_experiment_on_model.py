@@ -38,6 +38,7 @@ def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int,
     start_time = time.time()
     response = requests.post(f"http://localhost:{local_port}/generate", json=data)
     elapsed_time = time.time() - start_time
+    print(response)
     print(response.json())
     return response.json()['text'],elapsed_time
 # %%
