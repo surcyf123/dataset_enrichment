@@ -337,7 +337,7 @@ if __name__ == "__main__":
     # Testing on launch
     prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
     completions = [
-    "london", "Paris", "Berlin"
+    "london", "Given the historical significance and global influence of various European countries, the capital of France is most certainly Paris", "Berlin"
     ]
     resulting_dict = rw.calculate_total_reward(prompt, completions)
     print(resulting_dict)

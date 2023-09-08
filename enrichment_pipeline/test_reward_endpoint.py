@@ -1,7 +1,7 @@
 import requests
 
 # The API endpoint
-url = "http://90.84.239.86:40357/"
+urls = ["http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378"]
 
 
 # Your data
@@ -22,6 +22,6 @@ As for a related and insightful question: Can you elaborate on the specific cont
     ]
 }
 
-
-response = requests.post(url, json=data)
-print(response.json())
+for url in urls:
+    response = requests.post(url, json=data)
+    print(response.json())
