@@ -20,8 +20,8 @@ hyperparameter_searches = {
     "num_tokens" : [200],
     "temperature" : [0.7],
     "top_p" : [0.7],
-    "top_k" : [None],
-    "repetition_penalty" : [None]
+    "top_k" : [50],
+    "repetition_penalty" : [1.0]
 }
 
 def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
@@ -115,6 +115,51 @@ for i, prompt in tqdm(enumerate(prompts)):
                                     print(f"{retries} - Failed to Call Model(s):")
                                     print(e)
                                 break
+
+# Writing the stats
+import pandas as pd
+for num_tokens in hyperparameter_searches["num_tokens"]:       
+    with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.txt', 'w') as f:
+        df = pd.read_csv(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv')
+        
+        mean_duration = df['duration'].mean()
+        f.write(f'mean_duration {mean_duration}\n')
+        total_relevance_pass_rate = (df[df['total_reward'] != 0].shape[0])/len(df)
+        f.write(f'relevance_pass_rate {total_relevance_pass_rate}\n')
+
+        #bert
+        pass_mean_bert = df['bert'].mean()
+        f.write(f'bert_raw_avg {pass_mean_bert}\n')
+        pass_mean_bert_norm = df['bert_norm'].mean()
+        f.write(f'bert_pass_rate {pass_mean_bert_norm}\n')
+
+        #mpnet
+        pass_mean_dpo = df['mpnet'].mean()
+        f.write(f'mpnet_raw_avg {pass_mean_dpo}\n')
+        pass_mean_dpo_norm = df['mpnet_norm'].mean()
+        f.write(f'mpnet_pass_rate {pass_mean_dpo_norm}\n')
+
+        #dpo
+        pass_mean_dpo = df['dpo'].mean()
+        f.write(f'dpo_mean {pass_mean_dpo}\n')
+        pass_mean_dpo_norm = df['dpo_norm'].mean()
+        f.write(f'dpo_norm_mean {pass_mean_dpo_norm}\n')
+
+
+        # rlhf
+        pass_mean_rlhf = df['rlhf'].mean()
+        f.write(f'rlhf_mean {pass_mean_rlhf}\n')
+        pass_mean_rlhf_norm = df['rlhf_norm'].mean()
+        f.write(f'rlhf_mean_norm {pass_mean_rlhf_norm}\n')
+
+        #reciprocate
+        pass_mean_reciprocate_reward = df[df['total_reward'] != 0]['reciprocate'].mean()
+        f.write(f'reciprocate_reward_mean {pass_mean_reciprocate_reward}\n')
+        pass_mean_reciprocate_reward_norm = df[df['total_reward'] != 0]['reciprocate_norm'].mean()
+        f.write(f'reciprocate_reward_mean_norm {pass_mean_reciprocate_reward}\n')                        
+    
+    
+    
 print("Experiment Complete")                    
                     
     

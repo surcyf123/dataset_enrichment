@@ -33,7 +33,7 @@ models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ',
 # Finds all available instances
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = 'search offers " num_gpus=4 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
+search_for_instances = 'search offers " num_gpus=1 reliability > 0.99 gpu_name=RTX_4090 inet_down > 200" -o "dph_total"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
@@ -290,7 +290,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     experiment_shells[experiment_id].send(f"mkdir {experiment_filename}"+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{experiment_filename}*.csv /root/quantized_reward_results/{experiment_filename}/"+"\n")
+    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{experiment_filename}* /root/quantized_reward_results/{experiment_filename}/"+"\n")
     time.sleep(1)
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
