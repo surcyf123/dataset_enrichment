@@ -12,7 +12,7 @@ from typing import Tuple, Dict
 import csv
 # %%
 from tqdm import tqdm
-with open("../dataset/only_prompts.json", "r") as f:
+with open("../dataset/only_prompts_small.json", "r") as f:
     prompts = json.load(f)
     
 
