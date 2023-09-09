@@ -1,6 +1,5 @@
 # %%
 import subprocess
-# from loader import Loader
 from utils import get_tmux_content
 import pandas as pd
 import shlex
