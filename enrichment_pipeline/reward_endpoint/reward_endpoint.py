@@ -9,8 +9,6 @@ from abc import abstractmethod
 
 
 # TODO 
-# identify type of question when received, currently everything is "augment"
-# add task validator
 # look into optimizations for the reward models (quantization, clearning cache, make more memory efficient/faster)
 # implement nsfw filter
 # how to fix the initial high variability of normalization after reset because count = 0?
@@ -48,7 +46,7 @@ class BaseRewardModel:
         rewards = 0.5 * (1 + torch.erf(rewards / torch.sqrt(torch.tensor([2.0])).to(rewards.device)))
         return rewards
 
-    def apply(self, prompt: str, responses: List[str], name: str) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+    def apply(self, prompt: str, responses: List[str]) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         successful_completions = responses
         successful_rewards = self.get_rewards(prompt, successful_completions)
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
@@ -84,7 +82,7 @@ class RelevanceRewardModel(BaseRewardModel):
 
         return total_rewards, individual_scores
 
-    def apply(self, prompt: str, completions: List[str], name: str) -> Tuple[torch.FloatTensor, Dict[str, float]]:
+    def apply(self, prompt: str, completions: List[str]) -> Tuple[torch.FloatTensor, Dict[str, float]]:
         total_scores, individual_scores = self.get_rewards(prompt, completions)
         binary_scores = (total_scores > 0.5).float().tolist()  # Convert tensor to list
         
@@ -250,42 +248,6 @@ class DirectPreferenceRewardModel(BaseRewardModel):
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
-
-class TaskValidator(BaseRewardModel):
-
-    @property
-    def name(self) -> str:
-        return "TaskValidator"
-
-    def get_rewards(self, prompt: str, completions: List[str], name: str = None) -> torch.FloatTensor:
-        rewards = [self.reward(prompt, completion, name) for completion in completions]
-        return torch.tensor(rewards, dtype=torch.float32)
-
-    def reward(self, prompt: str, completion: str, name: str) -> float:
-        summary_keywords = ['summary:', 'paraphrase:', 'paraphrasing:', 'paraphrased:']
-        question_keywords = ['question:', 'query:', 'q:']
-        answer_keywords = ['answer:', 'response:', 'a:', 'completion:']
-
-        completion_contains_answer = any(keyword.lower() in completion.lower() for keyword in answer_keywords)
-        completion_contains_question = any(keyword.lower() in completion.lower() for keyword in question_keywords)
-        completion_contains_summary = any(keyword.lower() in completion.lower() for keyword in summary_keywords)
-
-        is_summarization_prompt = name == 'augment'
-        is_question_prompt = name and name.startswith('followup')
-        is_answer_prompt = name and name.startswith('answer')
-
-        if (is_summarization_prompt or is_question_prompt) and completion_contains_answer:
-            return 0.0
-        if (is_summarization_prompt or is_answer_prompt) and completion_contains_question:
-            return 0.0
-        if not is_summarization_prompt and completion_contains_summary:
-            return 0.0
-
-        return 1.0
-
-    def normalize_rewards( self, rewards: torch.FloatTensor ) -> torch.FloatTensor:
-        return rewards
-
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
@@ -302,7 +264,6 @@ class RewardEndpoint:
         ]
         self.masking_functions = [
         RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)]),
-        TaskValidator()
         ]
 
     def calculate_total_reward(self, prompt, completions):
@@ -321,7 +282,7 @@ class RewardEndpoint:
         # 1. Calculate total reward from all reward functions
         total_weighted_rewards = 0
         for reward_fn in self.reward_functions:
-            raw_rewards, normalized_rewards = reward_fn.apply(prompt, [completion], "augment")
+            raw_rewards, normalized_rewards = reward_fn.apply(prompt, [completion])
             weight = self.model_weights.get(reward_fn.name, 1.0)
             total_weighted_rewards += weight * normalized_rewards[0].item()
             completion_results[reward_fn.name] = [raw_rewards[0].item(), normalized_rewards[0].item()]
@@ -329,7 +290,7 @@ class RewardEndpoint:
         # 2. Calculate overall mask product
         mask_product = 1.0
         for masking_fn in self.masking_functions:
-            _, _, individual_scores = masking_fn.apply(prompt, [completion], "augment")
+            _, _, individual_scores = masking_fn.apply(prompt, [completion])
             for model, scores in individual_scores.items():
                 completion_results[model] = [scores["Raw"][0], scores["Binary"]]
                 mask_product *= scores["Binary"]
