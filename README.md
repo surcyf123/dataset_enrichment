@@ -37,3 +37,17 @@ I have registered vast.AI with the machine key so we can all use it
 
 Example Command:
 `ssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p 24364 root@ssh4.vast.ai -L 8080:localhost:8080`
+
+### Models To Test
+Below a is a list of quantized model strings I will use for testing. These are broken up into groups of 8 because most VAST.ai instances only have a maximum of 8x GPUs
+```python
+models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ','cerebras/btlm-3b-8k-base','TheBloke/airoboros-l2-13b-gpt4-m2.0-GPTQ','TheBloke/Nous-Hermes-Llama2-GPTQ','TheBloke/Guanaco-13B-Uncensored-GPTQ']
+
+models_to_test=['TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ','TheBloke/Nous-Puffin-70B-GPTQ','TheBloke/Trurl-2-13B-GPTQ','TheBloke/Speechless-Llama2-13B-GPTQ','TheBloke/StableBeluga-13B-GPTQ','TheBloke/OpenOrca-Platypus2-13B-GPTQ','TheBloke/Vigogne-2-13B-Instruct-GPTQ','TheBloke/Chronoboros-Grad-L2-13B-GPTQ']
+
+models_to_test=['TheBloke/Airochronos-L2-13B-GPTQ','TheBloke/Stheno-Inverted-L2-13B-GPTQ','TheBloke/Mythical-Destroyer-L2-13B-GPTQ','TheBloke/llama-2-13B-Guanaco-QLoRA-GPTQ','cerebras/btlm-3b-8k-base','TheBloke/Synthia-13B-GPTQ','TheBloke/Hermes-LLongMA-2-7B-8K-GPTQ','TheBloke/Llama-2-13B-GPTQ']
+
+# I added cerebras/btlm here again because theres some formatting issues that would have prevented it from completing in the first batch
+
+
+```

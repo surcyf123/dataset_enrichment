@@ -4,6 +4,7 @@ model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
 experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
+gpu_name = sys.argv[5]
 
 import requests
 import json
@@ -17,18 +18,18 @@ with open("../dataset/only_prompts.json", "r") as f:
     
 
 hyperparameter_searches = {
-    "num_tokens" : [100,200,300,400,500],
+    "num_tokens" : [200],
     "temperature" : [0.7],
     "top_p" : [0.7],
-    "top_k" : [None],
-    "repetition_penalty" : [None]
+    "top_k" : [50],
+    "repetition_penalty" : [1.0]
 }
 
-def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
+def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
     '''Returns the generated text, along with how long it took to execute'''
     data = {
     "prompt": prompt,
-    "max_new_tokens": 300,
+    "max_new_tokens": num_tokens,
     "temperature": temperature,
     "top_p": top_p,
     "top_k": top_k,
@@ -60,8 +61,15 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     
 # %%
 # Initialize CSV file and writer    
-    # Write the header to the CSV file
-    
+
+# Write the header to the CSV file
+for num_tokens in hyperparameter_searches["num_tokens"]:
+    with open(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.csv', mode='a', newline='') as csv_file:
+        fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
+        csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        csv_writer.writeheader()
+
+
 print("Experiment Starting")
 # Loop through the prompts and hyperparameters
 for i, prompt in tqdm(enumerate(prompts)):
@@ -70,40 +78,89 @@ for i, prompt in tqdm(enumerate(prompts)):
             for top_p in hyperparameter_searches["top_p"]:
                 for top_k in hyperparameter_searches["top_k"]:
                     for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                        with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv', mode='a', newline='') as csv_file:
-                            fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
-                            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-                            csv_writer.writeheader()
-                            generated_text, duration = call_model_with_params(prompt, temperature, top_p, top_k, repetition_penalty)
-                            reward_scores = get_scores_from_reward_model(prompt, generated_text)             
-                            
-                            try:
-                                # Write a row to the CSV file
-                                csv_writer.writerow({
-                                    'prompt_index': i,
-                                    'num_tokens' : num_tokens,
-                                    'temperature': temperature,
-                                    'top_p': top_p,
-                                    'top_k': top_k,
-                                    'repetition_penalty': repetition_penalty,
-                                    'duration': duration,
-                                    'bert' : reward_scores[0]["Bert"][0],
-                                    'bert_norm' : reward_scores[0]["Bert"][1],
-                                    'dpo' : reward_scores[0]["DPO"][0],
-                                    'dpo_norm' : reward_scores[0]["DPO"][1],
-                                    'mpnet' : reward_scores[0]["MPNet"][0],
-                                    'mpnet_norm' : reward_scores[0]["MPNet"][1],
-                                    'rlhf' : reward_scores[0]["RLHF"][0],
-                                    'rlhf_norm' : reward_scores[0]["RLHF"][1],
-                                    'reciprocate' : reward_scores[0]["Reciprocate"][0],
-                                    'reciprocate_norm' : reward_scores[0]["Reciprocate"][1],
-                                    'total_reward' : reward_scores[0]["Total Reward"],
-                                    'prompt' : prompt,
-                                    'generated_text' : generated_text
-                                })
-                            except:
-                                print("Failed to Index Reward Scores:")
-                                print(reward_scores)
+                        with open(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.csv', mode='a', newline='') as csv_file:
+                            retries = 0
+                            while True:
+                                try:
+                                    generated_text, duration = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty)
+                                    reward_scores = get_scores_from_reward_model(prompt, generated_text)
+                                    csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                                    # Write a row to the CSV file
+                                    csv_writer.writerow({
+                                        'prompt_index': i,
+                                        'num_tokens' : num_tokens,
+                                        'temperature': temperature,
+                                        'top_p': top_p,
+                                        'top_k': top_k,
+                                        'repetition_penalty': repetition_penalty,
+                                        'duration': duration,
+                                        'bert' : reward_scores[0]["Bert"][0],
+                                        'bert_norm' : reward_scores[0]["Bert"][1],
+                                        'dpo' : reward_scores[0]["DPO"][0],
+                                        'dpo_norm' : reward_scores[0]["DPO"][1],
+                                        'mpnet' : reward_scores[0]["MPNet"][0],
+                                        'mpnet_norm' : reward_scores[0]["MPNet"][1],
+                                        'rlhf' : reward_scores[0]["RLHF"][0],
+                                        'rlhf_norm' : reward_scores[0]["RLHF"][1],
+                                        'reciprocate' : reward_scores[0]["Reciprocate"][0],
+                                        'reciprocate_norm' : reward_scores[0]["Reciprocate"][1],
+                                        'total_reward' : reward_scores[0]["Total Reward"],
+                                        'prompt' : prompt,
+                                        'generated_text' : generated_text
+                                    })
+                                except Exception as e:
+                                    retries += 1
+                                    if retries > 5:
+                                        print("Number of Retries exceeded limit, skipping row.")
+                                        break
+                                    print(f"{retries} - Failed to Call Model(s):")
+                                    print(e)
+                                break
+
+# Writing the stats
+import pandas as pd
+for num_tokens in hyperparameter_searches["num_tokens"]:       
+    with open(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.txt', 'w') as f:
+        df = pd.read_csv(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.csv')
+        f.write(f'gpu_name {gpu_name}\n')
+        
+        mean_duration = df['duration'].mean()
+        f.write(f'mean_duration {mean_duration}\n')
+        total_relevance_pass_rate = (df[df['total_reward'] != 0].shape[0])/len(df)
+        f.write(f'relevance_pass_rate {total_relevance_pass_rate}\n')
+
+        #bert
+        pass_mean_bert = df['bert'].mean()
+        f.write(f'bert_raw_avg {pass_mean_bert}\n')
+        pass_mean_bert_norm = df['bert_norm'].mean()
+        f.write(f'bert_pass_rate {pass_mean_bert_norm}\n')
+
+        #mpnet
+        pass_mean_dpo = df['mpnet'].mean()
+        f.write(f'mpnet_raw_avg {pass_mean_dpo}\n')
+        pass_mean_dpo_norm = df['mpnet_norm'].mean()
+        f.write(f'mpnet_pass_rate {pass_mean_dpo_norm}\n')
+
+        #dpo
+        pass_mean_dpo = df['dpo'].mean()
+        f.write(f'dpo_mean {pass_mean_dpo}\n')
+        pass_mean_dpo_norm = df['dpo_norm'].mean()
+        f.write(f'dpo_norm_mean {pass_mean_dpo_norm}\n')
+
+
+        # rlhf
+        pass_mean_rlhf = df['rlhf'].mean()
+        f.write(f'rlhf_mean {pass_mean_rlhf}\n')
+        pass_mean_rlhf_norm = df['rlhf_norm'].mean()
+        f.write(f'rlhf_mean_norm {pass_mean_rlhf_norm}\n')
+
+        #reciprocate
+        pass_mean_reciprocate_reward = df[df['total_reward'] != 0]['reciprocate'].mean()
+        f.write(f'reciprocate_reward_mean {pass_mean_reciprocate_reward}\n')
+        pass_mean_reciprocate_reward_norm = df[df['total_reward'] != 0]['reciprocate_norm'].mean()
+        f.write(f'reciprocate_reward_mean_norm {pass_mean_reciprocate_reward}\n')                        
+    
+    
 print("Experiment Complete")                    
                     
     
