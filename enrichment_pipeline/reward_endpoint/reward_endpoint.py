@@ -17,6 +17,8 @@ from abc import abstractmethod
 # improve loading speed of the models (also through quantization? test how quant models affect scores and what the variability is)
 # add more logging for checks/debugging; try, excepts; improved error codes for API call fails
 # organize dict into reward models and masks
+# add diversity model
+
 
 
 class BaseRewardModel:
@@ -248,6 +250,42 @@ class DirectPreferenceRewardModel(BaseRewardModel):
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
+
+class TaskValidator(BaseRewardModel):
+
+    @property
+    def name(self) -> str:
+        return "TaskValidator"
+
+    def get_rewards(self, prompt: str, completions: List[str], name: str = None) -> torch.FloatTensor:
+        rewards = [self.reward(prompt, completion, name) for completion in completions]
+        return torch.tensor(rewards, dtype=torch.float32)
+
+    def reward(self, prompt: str, completion: str, name: str) -> float:
+        summary_keywords = ['summary:', 'paraphrase:', 'paraphrasing:', 'paraphrased:']
+        question_keywords = ['question:', 'query:', 'q:']
+        answer_keywords = ['answer:', 'response:', 'a:', 'completion:']
+
+        completion_contains_answer = any(keyword.lower() in completion.lower() for keyword in answer_keywords)
+        completion_contains_question = any(keyword.lower() in completion.lower() for keyword in question_keywords)
+        completion_contains_summary = any(keyword.lower() in completion.lower() for keyword in summary_keywords)
+
+        is_summarization_prompt = name == 'augment'
+        is_question_prompt = name and name.startswith('followup')
+        is_answer_prompt = name and name.startswith('answer')
+
+        if (is_summarization_prompt or is_question_prompt) and completion_contains_answer:
+            return 0.0
+        if (is_summarization_prompt or is_answer_prompt) and completion_contains_question:
+            return 0.0
+        if not is_summarization_prompt and completion_contains_summary:
+            return 0.0
+
+        return 1.0
+
+    def normalize_rewards( self, rewards: torch.FloatTensor ) -> torch.FloatTensor:
+        return rewards
+
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
@@ -264,7 +302,7 @@ class RewardEndpoint:
         ]
         self.masking_functions = [
         RelevanceRewardModel(device=self.device, models=[BertRelevanceRewardModel(device=self.device), MpnetRelevanceModel(device=self.device)]),
-        # TaskValidator()
+        TaskValidator()
         ]
 
     def calculate_total_reward(self, prompt, completions):
