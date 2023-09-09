@@ -7,6 +7,7 @@ from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
 import json
+import csv
 
 class BaseRewardModel:
     
@@ -197,22 +198,36 @@ class RewardEndpoint:
 
 
 # Compute statistics from the file
-file_path = "/root/dataset_enrichment/dataset/top_100/top_completions_rewards.json"
+file_path = "/root/dataset_enrichment/dataset/example_answers.json"
 
-# Create a list of all model classes
-models = [OpenAssistantRewardModel, ReciprocateRewardModel, DirectPreferenceRewardModel]
+# Initialize the RewardEndpoint
+endpoint = RewardEndpoint(gpu_id=0)
 
-# Iterate through each model, compute statistics, and store results
-stats = {}
-for model_class in models:
-    instance = model_class(device="cuda:0")
-    instance.compute_statistics_from_file(file_path)
-    stats[instance.name] = {
-        "mean": instance.base_mean,
-        "var": instance.base_var
-    }
+# Compute statistics for each model
+for reward_function in endpoint.reward_functions:
+    reward_function.compute_statistics_from_file(file_path)
 
-# Print the statistics for each model
-for model_name, values in stats.items():
-    print(f"{model_name} - Mean: {values['mean']}, Variance: {values['var']}")
+# Load the data from the file
+with open(file_path, 'r') as f:
+    data = json.load(f)
+
+# Set up the path to the CSV file and open it for writing
+csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
+
+with open(csv_path, 'w', newline='') as csvfile:
+    fieldnames = ['RLHF', "Reciprocate", "DPO", 'Total Reward', 'Prompt', 'Completion']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    
+    for entry in data:
+        prompt = entry["prompt"].strip('\n')  # Strip newline characters from the prompt
+        completions = [comp.strip('\n') for comp in entry["completions"]]  # Strip newline characters from each completion
+        for completion in completions:
+            rewards = endpoint.calculate_total_reward(prompt, [completion])
+            for reward in rewards:
+                row_data = {'Prompt': prompt, 'Completion': completion}
+                row_data.update(reward)
+                writer.writerow(row_data)
+
+print(f"Data saved to {csv_path}")
 
