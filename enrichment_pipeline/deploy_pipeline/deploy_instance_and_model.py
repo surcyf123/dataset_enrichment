@@ -1,6 +1,6 @@
 # %%
 import subprocess
-from loader import Loader
+# from loader import Loader
 from utils import get_tmux_content
 import pandas as pd
 import shlex
@@ -34,7 +34,7 @@ models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ',
 # Finds all available instances
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = 'search offers " num_gpus=4 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
+search_for_instances = 'search offers " num_gpus=1 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
@@ -69,21 +69,21 @@ assert('success' in launch_subprocess_output.stdout) # it will fail here if ther
 
 # Find instance ID and wait for it to be done
 instance_id:str =re.findall("('new_contract': )(.*)(})",launch_subprocess_output.stdout)[0][1]
-with Loader(desc="Instance is starting...",end=f"Instance {instance_id} is ready!"):
-    while True:
-        check_instances_command = f'show instances'
-        
-        check_instances_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command),stdout=subprocess.PIPE,text=True)
+print("Instance is starting...")
+while True:
+    check_instances_command = f'show instances'
+    
+    check_instances_output = subprocess.run(['./vast.py']+shlex.split(check_instances_command),stdout=subprocess.PIPE,text=True)
 
-        lines = check_instances_output.stdout.strip().split("\n")
-        headers = lines[0].replace("Util. %","Util_%").replace("SSH Addr","SSH_Addr").replace("SSH Port","SSH_Port").replace("Net up","Net_up").replace("Net down","Net_down").split()
-        rows = [line.split() for line in lines[1:]]
-        df_statuses = pd.DataFrame(rows,columns=headers)
-        target_row = df_statuses.loc[df_statuses['ID'] == instance_id] # Select the target row
-        if target_row.iloc[0]['Status'] == "running":
-            break
-        time.sleep(1)
-
+    lines = check_instances_output.stdout.strip().split("\n")
+    headers = lines[0].replace("Util. %","Util_%").replace("SSH Addr","SSH_Addr").replace("SSH Port","SSH_Port").replace("Net up","Net_up").replace("Net down","Net_down").split()
+    rows = [line.split() for line in lines[1:]]
+    df_statuses = pd.DataFrame(rows,columns=headers)
+    target_row = df_statuses.loc[df_statuses['ID'] == instance_id] # Select the target row
+    if target_row.iloc[0]['Status'] == "running":
+        break
+    time.sleep(1)
+print(f"Instance {instance_id} is ready!")
 #SSH into instance
 get_port_and_ip_command = f'show instance {instance_id}' #TODO: It works but not really intended for it to be working this way
 get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(get_port_and_ip_command)+['--raw'],stdout=subprocess.PIPE,text=True)
@@ -168,10 +168,10 @@ commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
     time.sleep(1)
-with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
-    while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
-        time.sleep(1)
-
+print("Installing Dependancies")
+while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
+    time.sleep(1)
+print("Dependancies Ready!")
 
 
 # Init UUIDs
@@ -230,10 +230,11 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
         time.sleep(1)
-    with Loader(desc=f"{experiment_id}: Downloading Model(s)",end=f"Model(s) Ready!"):
-        while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(model_clients[experiment_id]):
-            time.sleep(1)
-
+    print(f"{experiment_id}: Downloading Model(s)")
+    
+    while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(model_clients[experiment_id]):
+        time.sleep(1)
+    print(f"Model {experiment_id} Ready!")
     # I need to launch this in its own screen
     base_uuid = str(uuid.uuid4())
     model_uuid = f"{experiment_id}:MOD:"+base_uuid
@@ -253,9 +254,10 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
         time.sleep(1)
-    with Loader(desc=f"{experiment_id}:Launching Model: {model_uuid}",end=f"Model {model_uuid} Ready on Port {launch_args['local_port']}!"):
-        while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
-            time.sleep(1)
+    print("{experiment_id}:Launching Model: {model_uuid}")
+    while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
+        time.sleep(1)
+    print("Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
     # 
     # Launch Experiment
@@ -270,9 +272,10 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid} {launch_args['reward_endpoint']}"+"\n")
     time.sleep(0.1)
     
-    with Loader(desc=f"{experiment_id}:Running Experiment: {model_uuid}",end=f"Model {model_uuid} Done: {launch_args['local_port']}!"):
-        while "Experiment Complete" not in get_tmux_content(experiment_clients[experiment_id]):
-            time.sleep(1)
+    print(f"{experiment_id}:Running Experiment: {model_uuid}")
+    while "Experiment Complete" not in get_tmux_content(experiment_clients[experiment_id]):
+        time.sleep(1)
+    print(f"Model {model_uuid} Done: {launch_args['local_port']}!")
 
     # Get the experiment averages
     
@@ -328,3 +331,5 @@ print("All threads are running")
 
 
 # Start the next one somewhere somehow
+
+# %%
