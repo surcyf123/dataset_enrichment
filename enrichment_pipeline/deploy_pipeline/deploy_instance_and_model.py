@@ -25,16 +25,16 @@ reward_endpoints = [
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ']
+models_to_test=['TheBloke/Airochronos-L2-13B-GPTQ','TheBloke/Stheno-Inverted-L2-13B-GPTQ','TheBloke/Mythical-Destroyer-L2-13B-GPTQ','TheBloke/llama-2-13B-Guanaco-QLoRA-GPTQ','cerebras/btlm-3b-8k-base','TheBloke/Synthia-13B-GPTQ','TheBloke/Hermes-LLongMA-2-7B-8K-GPTQ','TheBloke/Llama-2-13B-GPTQ']
 
 
 # First we launch the instance and install dependancies
 
 # Finds all available instances
-gpu_name = "RTX_4090"
+gpu_name = "RTX_3090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = f'search offers " num_gpus=8 reliability > 0.99 gpu_name={gpu_name} inet_down > 200" -o "dph_total"'
+search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "dph_total"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
@@ -57,7 +57,7 @@ viable_models = df_instances[(df_instances['RAM'] / df_instances['N'] >= 4) & (d
 print(viable_models.head())
 
 
-picked_row = 1 # i do this because sometimes the instances just dont work right
+picked_row = 0 # i do this because sometimes the instances just dont work right
 # Pick the first instance and launch it with the right image
 model_id_chosen:str = viable_models.iloc[picked_row].loc["ID"]
 number_of_gpus_in_instance = viable_models.iloc[picked_row].loc["N"]
@@ -257,7 +257,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id}:Launching Model: {model_uuid}")
     while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
         time.sleep(1)
-    print("Model {model_uuid} Ready on Port {launch_args['local_port']}!")
+    print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
     # 
     # Launch Experiment
@@ -286,7 +286,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
     time.sleep(0.1)
     print("Pushing Results: " + models_to_test[experiment_id])
-    experiment_filename = models_to_test[experiment_id].replace("TheBloke/","")
+    experiment_filename = models_to_test[experiment_id].replace("cerebras/","")
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
     time.sleep(0.1)
     experiment_shells[experiment_id].send(f"mkdir {experiment_filename}"+"\n")
