@@ -43,6 +43,7 @@ def process_question():
     prompt = data['prompt']
     completions_needed = data['completions_needed']
     max_time = data['max_time_allowed']
+    question_value = data["question_value"]
 
     # Reset the completions list
     with completions_lock:
