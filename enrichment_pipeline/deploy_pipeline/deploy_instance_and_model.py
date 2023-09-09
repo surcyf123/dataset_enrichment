@@ -14,7 +14,7 @@ import threading
 from typing import Dict
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-active_branch = "ethan/road_to_0.2"
+active_branch = "main"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
@@ -28,7 +28,7 @@ reward_endpoints = ["http://90.84.239.86:40357","http://90.84.239.86:40264","htt
 # Finds all available instances
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = 'search offers " num_gpus>1 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
+search_for_instances = 'search offers " num_gpus=4 reliability > 0.99 gpu_name=RTX_3090 inet_down > 200" -o "dph_total"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()

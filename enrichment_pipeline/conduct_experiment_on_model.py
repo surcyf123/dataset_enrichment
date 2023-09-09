@@ -77,29 +77,33 @@ for i, prompt in tqdm(enumerate(prompts)):
                             generated_text, duration = call_model_with_params(prompt, temperature, top_p, top_k, repetition_penalty)
                             reward_scores = get_scores_from_reward_model(prompt, generated_text)             
                             
-                            # Write a row to the CSV file
-                            csv_writer.writerow({
-                                'prompt_index': i,
-                                'num_tokens' : num_tokens,
-                                'temperature': temperature,
-                                'top_p': top_p,
-                                'top_k': top_k,
-                                'repetition_penalty': repetition_penalty,
-                                'duration': duration,
-                                'bert' : reward_scores[0]["Bert"][0],
-                                'bert_norm' : reward_scores[0]["Bert"][1],
-                                'dpo' : reward_scores[0]["DPO"][0],
-                                'dpo_norm' : reward_scores[0]["DPO"][1],
-                                'mpnet' : reward_scores[0]["MPNet"][0],
-                                'mpnet_norm' : reward_scores[0]["MPNet"][1],
-                                'rlhf' : reward_scores[0]["RLHF"][0],
-                                'rlhf_norm' : reward_scores[0]["RLHF"][1],
-                                'reciprocate' : reward_scores[0]["Reciprocate"][0],
-                                'reciprocate_norm' : reward_scores[0]["Reciprocate"][1],
-                                'total_reward' : reward_scores[0]["Total Reward"],
-                                'prompt' : prompt,
-                                'generated_text' : generated_text
-                            })
+                            try:
+                                # Write a row to the CSV file
+                                csv_writer.writerow({
+                                    'prompt_index': i,
+                                    'num_tokens' : num_tokens,
+                                    'temperature': temperature,
+                                    'top_p': top_p,
+                                    'top_k': top_k,
+                                    'repetition_penalty': repetition_penalty,
+                                    'duration': duration,
+                                    'bert' : reward_scores[0]["Bert"][0],
+                                    'bert_norm' : reward_scores[0]["Bert"][1],
+                                    'dpo' : reward_scores[0]["DPO"][0],
+                                    'dpo_norm' : reward_scores[0]["DPO"][1],
+                                    'mpnet' : reward_scores[0]["MPNet"][0],
+                                    'mpnet_norm' : reward_scores[0]["MPNet"][1],
+                                    'rlhf' : reward_scores[0]["RLHF"][0],
+                                    'rlhf_norm' : reward_scores[0]["RLHF"][1],
+                                    'reciprocate' : reward_scores[0]["Reciprocate"][0],
+                                    'reciprocate_norm' : reward_scores[0]["Reciprocate"][1],
+                                    'total_reward' : reward_scores[0]["Total Reward"],
+                                    'prompt' : prompt,
+                                    'generated_text' : generated_text
+                                })
+                            except:
+                                print("Failed to Index Reward Scores:")
+                                print(reward_scores)
 print("Experiment Complete")                    
                     
     
