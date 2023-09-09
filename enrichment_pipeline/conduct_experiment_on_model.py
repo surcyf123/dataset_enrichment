@@ -83,6 +83,7 @@ for i, prompt in tqdm(enumerate(prompts)):
                                 try:
                                     generated_text, duration = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty)
                                     reward_scores = get_scores_from_reward_model(prompt, generated_text)
+                                    csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                                     # Write a row to the CSV file
                                     csv_writer.writerow({
                                         'prompt_index': i,
