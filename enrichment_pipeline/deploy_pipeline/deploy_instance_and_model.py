@@ -18,7 +18,11 @@ active_branch = "main"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
-reward_endpoints = ["http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378"]
+reward_endpoints = [
+    "http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378", # Server 1, 4x4090, ssh -p 40243 root@90.84.239.86 -L 8080:localhost:8080
+    "http://36.225.152.8:40594","http://36.225.152.8:40565","http://36.225.152.8:40512","http://36.225.152.8:40554", # Server 2, 4x4090, ssh -p 40543 root@36.225.152.8 -L 8080:localhost:8080
+    "http://81.79.125.89:45654","http://81.79.125.89:45829","http://81.79.125.89:45395","http://81.79.125.89:45550", # Server 3, 4x4090 ssh -p 45648 root@81.79.125.89 -L 8080:localhost:8080
+    ]
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
