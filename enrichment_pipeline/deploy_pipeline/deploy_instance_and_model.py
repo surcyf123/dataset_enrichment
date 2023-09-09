@@ -31,9 +31,10 @@ models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ',
 # First we launch the instance and install dependancies
 
 # Finds all available instances
+gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = 'search offers " num_gpus=1 reliability > 0.99 gpu_name=RTX_4090 inet_down > 200" -o "dph_total"'
+search_for_instances = f'search offers " num_gpus=8 reliability > 0.99 gpu_name={gpu_name} inet_down > 200" -o "dph_total"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
@@ -268,7 +269,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai'+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid} {launch_args['reward_endpoint']}"+"\n")
+    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid} {launch_args['reward_endpoint']} {gpu_name}"+"\n")
     time.sleep(0.1)
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")

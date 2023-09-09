@@ -4,6 +4,7 @@ model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
 experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
+gpu_name = sys.argv[5]
 
 import requests
 import json
@@ -12,7 +13,7 @@ from typing import Tuple, Dict
 import csv
 # %%
 from tqdm import tqdm
-with open("../dataset/only_prompts_small.json", "r") as f:
+with open("../dataset/only_prompts.json", "r") as f:
     prompts = json.load(f)
     
 
@@ -121,6 +122,7 @@ import pandas as pd
 for num_tokens in hyperparameter_searches["num_tokens"]:       
     with open(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.txt', 'w') as f:
         df = pd.read_csv(f'results/{num_tokens}-{model_name_or_path.replace("TheBloke/","")}.csv')
+        f.write(f'gpu_name {gpu_name}\n')
         
         mean_duration = df['duration'].mean()
         f.write(f'mean_duration {mean_duration}\n')
@@ -157,7 +159,6 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
         f.write(f'reciprocate_reward_mean {pass_mean_reciprocate_reward}\n')
         pass_mean_reciprocate_reward_norm = df[df['total_reward'] != 0]['reciprocate_norm'].mean()
         f.write(f'reciprocate_reward_mean_norm {pass_mean_reciprocate_reward}\n')                        
-    
     
     
 print("Experiment Complete")                    
