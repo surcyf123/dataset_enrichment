@@ -37,3 +37,9 @@ I have registered vast.AI with the machine key so we can all use it
 
 Example Command:
 `ssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p 24364 root@ssh4.vast.ai -L 8080:localhost:8080`
+
+### Models To Test
+Below a is a list of quantized model strings I will use for testing. These are broken up into groups of 8 because most VAST.ai instances only have a maximum of 8x GPUs
+```python
+models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ','TheBloke/Kimiko-13B-GPTQ',]
+```
