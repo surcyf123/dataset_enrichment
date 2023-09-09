@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from abc import abstractmethod
 import json
 import csv
+import concurrent.futures
+
 
 class BaseRewardModel:
     
@@ -164,13 +166,13 @@ def mean_pooling(model_output, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 class RewardEndpoint:
-    def __init__(self, gpu_id):
-        self.device = torch.device(f"cuda:{gpu_id}")
-        self.model_weights = {"RLHF": .4, "DPO": .3, "Reciprocate": .3} 
+    def __init__(self, gpu_ids):
+        self.gpu_ids = gpu_ids
+        self.model_weights = {"RLHF": .4, "DPO": .3, "Reciprocate": .3}
         self.reward_functions = [
-            OpenAssistantRewardModel(device=self.device),
-            ReciprocateRewardModel(device=self.device),
-            DirectPreferenceRewardModel(device=self.device),
+            OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
+            ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
+            DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
         ]
 
     def calculate_total_reward(self, prompt, completions):
@@ -196,38 +198,44 @@ class RewardEndpoint:
 
         return completion_results, total_weighted_rewards
 
+def process_data_on_gpu(data, reward_function):
+    results = []
+    for entry in data:
+        prompt = entry["prompt"].strip('\n')
+        completions = [comp.strip('\n') for comp in entry["completions"]]
+        for completion in completions:
+            rewards = reward_function.calculate_total_reward(prompt, [completion])
+            for reward in rewards:
+                row_data = {'Prompt': prompt, 'Completion': completion}
+                row_data.update(reward)
+                results.append(row_data)
+    return results
 
-# Compute statistics from the file
 file_path = "/root/dataset_enrichment/dataset/example_answers.json"
-
-# Initialize the RewardEndpoint
-endpoint = RewardEndpoint(gpu_id=0)
-
-# Compute statistics for each model
-for reward_function in endpoint.reward_functions:
-    reward_function.compute_statistics_from_file(file_path)
 
 # Load the data from the file
 with open(file_path, 'r') as f:
     data = json.load(f)
 
-# Set up the path to the CSV file and open it for writing
-csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
+# Split the dataset into three parts
+data_split = [data[i::3] for i in range(3)]
 
+results = []
+
+# Use threads to process each part of the dataset on a separate GPU
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    futures = [executor.submit(process_data_on_gpu, data_split[i], endpoint.reward_functions[i]) for i in range(3)]
+    for future in concurrent.futures.as_completed(futures):
+        results.extend(future.result())
+
+# Write the results to the CSV
+csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
 with open(csv_path, 'w', newline='') as csvfile:
     fieldnames = ['RLHF', "Reciprocate", "DPO", 'Total Reward', 'Prompt', 'Completion']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
     
-    for entry in data:
-        prompt = entry["prompt"].strip('\n')  # Strip newline characters from the prompt
-        completions = [comp.strip('\n') for comp in entry["completions"]]  # Strip newline characters from each completion
-        for completion in completions:
-            rewards = endpoint.calculate_total_reward(prompt, [completion])
-            for reward in rewards:
-                row_data = {'Prompt': prompt, 'Completion': completion}
-                row_data.update(reward)
-                writer.writerow(row_data)
+    for row_data in results:
+        writer.writerow(row_data)
 
 print(f"Data saved to {csv_path}")
-
