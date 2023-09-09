@@ -284,7 +284,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     # Upload Results to Git
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
     time.sleep(0.1)
-    print(models_to_test[experiment_id])
+    print("Pushing Results: " + models_to_test[experiment_id])
     experiment_filename = models_to_test[experiment_id].replace("TheBloke/","")
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
     time.sleep(0.1)
