@@ -17,7 +17,7 @@ with open("../dataset/only_prompts_small.json", "r") as f:
     
 
 hyperparameter_searches = {
-    "num_tokens" : [100,200,300,400,500],
+    "num_tokens" : [200],
     "temperature" : [0.7],
     "top_p" : [0.7],
     "top_k" : [None],
