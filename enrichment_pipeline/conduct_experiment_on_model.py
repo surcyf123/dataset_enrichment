@@ -24,11 +24,11 @@ hyperparameter_searches = {
     "repetition_penalty" : [None]
 }
 
-def call_model_with_params(prompt:str,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
+def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
     '''Returns the generated text, along with how long it took to execute'''
     data = {
     "prompt": prompt,
-    "max_new_tokens": 300,
+    "max_new_tokens": num_tokens,
     "temperature": temperature,
     "top_p": top_p,
     "top_k": top_k,
@@ -74,7 +74,7 @@ for i, prompt in tqdm(enumerate(prompts)):
                             fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
                             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                             csv_writer.writeheader()
-                            generated_text, duration = call_model_with_params(prompt, temperature, top_p, top_k, repetition_penalty)
+                            generated_text, duration = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty)
                             reward_scores = get_scores_from_reward_model(prompt, generated_text)             
                             
                             try:

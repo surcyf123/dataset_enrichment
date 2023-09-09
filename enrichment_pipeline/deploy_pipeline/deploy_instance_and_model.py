@@ -21,6 +21,8 @@ active_branch = "main"
 reward_endpoints = ["http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378"]
 # Define which models we want to test
 
+# TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
+models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ']
 
 
 # First we launch the instance and install dependancies
@@ -140,11 +142,21 @@ dep_shell.send('tmux new -s install_deps' + "\n")
 scp = SCPClient(install_dep_client.get_transport())
 scp.put(files=['/home/bird/dataset_enrichment/credentials/autovastai','/home/bird/dataset_enrichment/credentials/autovastai.pub'],remote_path='/root/.ssh/')
 dep_shell.send('chmod 600 ~/.ssh/autovastai && chmod 600 ~/.ssh/autovastai.pub' + "\n")
-time.sleep(0.3)
+time.sleep(0.1)
 dep_shell.send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
 
-time.sleep(0.3)
+time.sleep(0.1)
 dep_shell.send('ssh-keyscan github.com >> ~/.ssh/known_hosts' + "\n")
+# Setup folder for dataset upload
+time.sleep(0.1)
+dep_shell.send("cd /root/" + "\n")
+time.sleep(0.1)
+dep_shell.send("git clone git@github.com:surcyf123/quantized_reward_results.git"+"\n")
+while not dep_shell.recv_ready():
+    time.sleep(1)
+dep_shell.send("git config --global user.name 'AutoVastAI' && git config --global user.email 'deckenball@gmail.com'"+"\n")
+
+
 # Connect and Install Dependancies
 time.sleep(0.3)
 commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat /root/dataset_enrichment/credentials/ckpt1"]
@@ -156,12 +168,7 @@ with Loader(desc="Installing Dependancies",end=f"Dependancies Ready!"):
     while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
         time.sleep(1)
 
-dep_shell.send('\x02')
-time.sleep(0.1)
-dep_shell.send('x\n')
-time.sleep(0.1)
-dep_shell.send('y\n')
-install_dep_client.close()
+
 
 # Init UUIDs
 # ------------------------------------------- I should just initialize the clients and shells, then pass it into the threading --------------------
@@ -174,8 +181,7 @@ experiment_shells: Dict[int,paramiko.Channel] = {} # dict to store all the exper
 model_clients: Dict[int,paramiko.client.SSHClient] = {} # dict to store all the models active sessions' clients
 model_shells: Dict[int,paramiko.Channel] = {} # dict to store all the models active sessions' shells
 
-# TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test = ['TheBloke/Pygmalion-2-13B-GPTQ','TheBloke/13B-Thorns-L2-GPTQ','TheBloke/Kimiko-13B-GPTQ','TheBloke/OpenBuddy-Llama2-13B-v11.1-GPTQ']
+
 base_port = 7777
 for i in range(number_of_gpus_in_instance):
     chosen_experiment_model_name = models_to_test[i]
@@ -255,6 +261,8 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     # Run Experiment
     experiment_shells[experiment_id].send("cd /root/dataset_enrichment/enrichment_pipeline"+"\n")
     time.sleep(0.1)
+    experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai'+"\n")
+    time.sleep(0.1)
     experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid} {launch_args['reward_endpoint']}"+"\n")
     time.sleep(0.1)
     
@@ -263,10 +271,38 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
             time.sleep(1)
 
     # Get the experiment averages
+    
 
-
+    
 
     # Upload Results to Git
+    experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
+    time.sleep(0.1)
+    print(models_to_test[experiment_id])
+    experiment_filename = models_to_test[experiment_id].replace("TheBloke/","")
+    experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
+    time.sleep(0.1)
+    experiment_shells[experiment_id].send(f"mkdir {experiment_filename}"+"\n")
+    time.sleep(0.1)
+    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{experiment_filename}*.csv /root/quantized_reward_results/{experiment_filename}/"+"\n")
+    time.sleep(1)
+    while not experiment_shells[experiment_id].recv_ready():
+        time.sleep(1)
+    experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
+    time.sleep(0.1)
+    experiment_shells[experiment_id].send(f"git add ."+"\n")
+    while not experiment_shells[experiment_id].recv_ready():
+        time.sleep(1)
+    experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {experiment_filename}.'"+"\n")
+    while not experiment_shells[experiment_id].recv_ready():
+        time.sleep(1)
+    
+    experiment_shells[experiment_id].send(f"git push origin main"+"\n")
+    while not experiment_shells[experiment_id].recv_ready():
+        time.sleep(1)
+    
+    
+    
 
     # Close both screens for the model, and for the experiment running
     
@@ -288,5 +324,3 @@ print("All threads are running")
 
 
 # Start the next one somewhere somehow
-
-# %%
