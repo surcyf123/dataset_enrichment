@@ -67,18 +67,20 @@ class ReciprocateRewardModel(BaseRewardModel):
         logging.info("Initializing ReciprocateRewardModel...")
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(self.reward_model_path, revision=self.revision)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_path, revision=self.revision, torch_dtype=torch.float32).to(self.device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_path, revision=self.revision, torch_dtype=torch.float16).to(self.device)
 
     @property
     def name(self) -> str:
         return "Reciprocate"
 
-    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+    def reward_single(self, prompt: str, completion: str) -> float:
         with torch.no_grad():
-            messages = [f"{prompt}</s>{completion}</s>" for completion in completions]
-            inputs = self.tokenizer(messages, return_tensors="pt", padding=True, truncation=True).to(self.device)
-            logits = self.model(**inputs).logits
-            return logits[:, 0]
+            message = f"{prompt}</s>{completion}</s>"
+            inputs = self.tokenizer(message, return_tensors="pt", truncation=True).to(self.device)
+            return float(self.model(**inputs)[0].item())
+
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
 
 
 class DirectPreferenceRewardModel(BaseRewardModel):
@@ -115,6 +117,9 @@ class DirectPreferenceRewardModel(BaseRewardModel):
                 labels[labels == -100] = 0
 
                 logits = self.model(combined.unsqueeze(0)).logits[:, :-1, :]
+                for i in range(len(prompt_part) + 1, len(combined) - 1):
+                    logits[:, i, :] = self.logit_penalty(combined[len(prompt_part):i], logits[:, i, :])
+                
                 logits = logits.log_softmax(-1)
                 per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(0).unsqueeze(2)).squeeze(2)
                 mask = (labels != -100).unsqueeze(0)
@@ -124,6 +129,15 @@ class DirectPreferenceRewardModel(BaseRewardModel):
                 else:
                     rewards.append(reward)
         return torch.stack(rewards)
+
+    def logit_penalty(self, input_ids: torch.LongTensor, logit: torch.FloatTensor) -> torch.FloatTensor:
+        uniques, counts = input_ids.unique(return_counts=True)
+        score = torch.gather(logit, 1, uniques.unsqueeze(0))
+
+        score = torch.where(score < 0, score * (self.penalty ** counts), score / (self.penalty ** counts))
+
+        logit.scatter_(1, uniques.unsqueeze(0), score.to(logit.dtype))
+        return logit
 
 class RewardEndpoint:
     """Endpoint to calculate rewards using various reward models."""
