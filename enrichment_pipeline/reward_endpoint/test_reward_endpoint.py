@@ -4,9 +4,9 @@ import time
 # The API endpoint
 urls = [
     "http://172.218.204.83:2701", # "http://172.218.204.83:2456","http://172.218.204.83:2925","http://172.218.204.83:2148", # Server 4, 4x4090, ssh -p 2070 root@172.218.204.83 -L 8080:localhost:8080
-    "http://37.27.2.44:60102", #vast7
+    # "http://37.27.2.44:60102", #vast7
     "http://184.67.78.114:42098", # vast6
-    "http://142.182.6.112:55461", #vast5
+    # "http://142.182.6.112:55461", #vast5
     ]
 
 # # Your data
@@ -44,24 +44,26 @@ Sure! Here is a summary of the text in seven sentences:\n\nYoichiro Nambu, a Jap
 # Dictionary to store time taken for each URL
 url_timings = {url: [] for url in urls}
 
-# Randomly select 50 unique conversational words
-for i in range(100):
-    random_combination = random.sample(conversational_words, 40)
-    data = {
-        "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
-        "prompt": prompt,
-        "completions": [random_combination]
-    }
+for url in urls:
+    print(f"Testing for URL: {url}")
 
-    for url in urls:
+    # Randomly select 50 unique conversational words
+    for i in range(20):
+        random_combination = random.sample(conversational_words, 40)
+        data = {
+            "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
+            "prompt": prompt,
+            "completions": [random_combination]
+        }
+
         start_time = time.time()
         response = requests.post(url, json=data)
         end_time = time.time()
-        
+
         time_taken = end_time - start_time
         url_timings[url].append(time_taken)
-        
-        print(f"Time taken for {url}: {time_taken:.4f} seconds")
+
+        print(f"Sample {i + 1} - Time taken for {url}: {time_taken:.4f} seconds")
         print(response.json())
 
 # Calculate statistics at the end
@@ -71,7 +73,7 @@ for url, timings in url_timings.items():
     avg_time = total_time / len(timings)
     min_time = min(timings)
     max_time = max(timings)
-    
+
     print(f"URL: {url}")
     print(f"  Total time: {total_time:.4f} seconds")
     print(f"  Average time per request: {avg_time:.4f} seconds")

@@ -1,21 +1,21 @@
 import torch
 from typing import List, Dict, Tuple
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM
 import json
-import csv
-import concurrent.futures
 import logging
 from flask import Flask, request, jsonify
 import argparse
-import threading
-from transformers import  AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModel, AutoModelForCausalLM
 from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
-
+from abc import abstractmethod
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
 
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output[0]
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 class BaseRewardModel:
     """Base class for reward models."""
@@ -131,20 +131,19 @@ class RelevanceRewardModel(BaseRewardModel):
         self.device = device
         self.models = models
     
-    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        total_rewards = torch.zeros(len(completions), dtype=torch.float32).to(self.device)
+    def get_rewards(self, prompt: str, completions: List[str]) -> Dict[str, torch.FloatTensor]:
+        # Dictionary to store model results
+        model_results = {}
         
         for model in self.models:
             scores = model.get_rewards(prompt, completions)
-            total_rewards += scores
+            model_results[model.name] = scores
         
-        # Average the scores from all models
-        total_rewards /= len(self.models)
-        
-        return total_rewards
+        return model_results
 
-    def apply(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+    def apply(self, prompt: str, completions: List[str]) -> Dict[str, torch.FloatTensor]:
         return self.get_rewards(prompt, completions)
+
 
 
 class BertRelevanceRewardModel(BaseRewardModel):
@@ -227,10 +226,20 @@ class RewardEndpoint:
         model_scores = {}
         for reward_fn in self.reward_functions:
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-            score = raw_rewards[0].item()
-            model_scores[reward_fn.name] = score
-            logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
+            
+            # Check if raw_rewards is a dictionary (specifically for RelevanceRewardModel)
+            if isinstance(raw_rewards, dict):
+                for model_name, scores in raw_rewards.items():
+                    score = scores[0].item()
+                    model_scores[model_name] = score
+                    logging.info(f"Prompt {prompt[:20]}: {model_name} {score:.4f}")
+            else:
+                score = raw_rewards[0].item()
+                model_scores[reward_fn.name] = score
+                logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
+
         return model_scores
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
