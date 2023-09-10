@@ -3,6 +3,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import re
+from collections import defaultdict
+import json
 
 def get_gptq_models():
     # Set up Chrome options
@@ -31,7 +34,25 @@ def get_gptq_models():
     # Close the browser
     browser.quit()
     
-    return gptq_models
+    # Extract model parameter size
+    def extract_size(model_name):
+        match = re.search(r'(\d+)[Bb]', model_name)
+        return int(match.group(1)) if match else "unknown"
+    
+    # Group models by their parameter size
+    models_by_size = defaultdict(list)
+    for model in gptq_models:
+        size = extract_size(model)
+        models_by_size[size].append(model)
+    
+    # Sort the dictionary by parameter size from largest to smallest, then "unknown"
+    sorted_models_by_size = dict(sorted(models_by_size.items(), key=lambda x: (x[0] == "unknown", -x[0] if isinstance(x[0], int) else 0)))
+    
+    return sorted_models_by_size
 
-# Test the function
-print(get_gptq_models())
+# Get the models and write to a JSON file
+models = get_gptq_models()
+with open("thebloke_gptqs.json", "w") as outfile:
+    json.dump(models, outfile, indent=4)
+
+print("Data written to thebloke_gptqs.json")
