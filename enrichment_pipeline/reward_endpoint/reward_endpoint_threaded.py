@@ -8,17 +8,15 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
-from multiprocessing import Process, Queue, Event
+import threading
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", default=30000, type=int)
     return parser.parse_args()
-
 
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
@@ -152,8 +150,6 @@ class RelevanceRewardModel(BaseRewardModel):
     def apply(self, prompt: str, completions: List[str]) -> Dict[str, torch.FloatTensor]:
         return self.get_rewards(prompt, completions)
 
-
-
 class BertRelevanceRewardModel(BaseRewardModel):
     relevance_model_path = "bert-base-uncased"
     
@@ -222,53 +218,42 @@ class RewardEndpoint:
     def __init__(self, gpu_ids):
         logging.info("Initializing RewardEndpoint with GPU IDs: %s", gpu_ids)
         self.gpu_ids = gpu_ids
-        self.models = [
-            OpenAssistantRewardModel,
-            ReciprocateRewardModel,
-            DirectPreferenceRewardModel,
+        self.reward_functions = [
+            OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
+            ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
+            DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
             RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
         ]
-        self.queues = [Queue() for _ in self.models]
-        self.return_queues = [Queue() for _ in self.models]
-        self.exit_events = [Event() for _ in self.models]
-
-        self.processes = []
-        for i, model_class in enumerate(self.models):
-            p = Process(target=self._worker, args=(model_class, self.gpu_ids[i], self.queues[i], self.return_queues[i], self.exit_events[i]))
-            p.start()
-            self.processes.append(p)
-
-    def _worker(self, model_class, gpu_id, queue, return_queue, exit_event):
-        """Worker function to run on each process."""
-        reward_fn = model_class(device=f"cuda:{gpu_id}")
-        while not exit_event.is_set():
-            prompt, completion = queue.get()
-            raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-            if isinstance(raw_rewards, dict):  # Handle dictionary results if any
-                return_queue.put({reward_fn.name: raw_rewards[reward_fn.name][0].item()})
-            else:
-                return_queue.put({reward_fn.name: raw_rewards[0].item()})
 
     def calculate_total_reward(self, prompt, completion):
-        """Calculate total reward for a given prompt and its completion using multiprocessing."""
-        # Send data to each process for computation
-        for q in self.queues:
-            q.put((prompt, completion))
-
-        # Collect results
+        """Calculate total reward for a given prompt and its completion."""
         model_scores = {}
-        for r_q in self.return_queues:
-            model_scores.update(r_q.get())
+        
+        # Function to calculate rewards in a thread
+        def thread_fn(reward_fn, prompt, completion, results):
+            raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
+            if isinstance(raw_rewards, dict):
+                for model_name, scores in raw_rewards.items():
+                    score = scores[0].item()
+                    results[model_name] = score
+            else:
+                score = raw_rewards[0].item()
+                results[reward_fn.name] = score
 
-        logging.info(f"Model Scores: {model_scores}")
+        threads = []
+        results = {}  # shared dictionary to store results from threads
+        for reward_fn in self.reward_functions:
+            t = threading.Thread(target=thread_fn, args=(reward_fn, prompt, completion, results))
+            t.start()
+            threads.append(t)
+            
+        for t in threads:
+            t.join()
+        
+        model_scores.update(results)
+        logging.info(f"Model scores: {model_scores}")
+
         return model_scores
-
-    def close(self):
-        """Close all processes."""
-        for event in self.exit_events:
-            event.set()
-        for p in self.processes:
-            p.join()
 
 app = Flask(__name__)
 @app.route("/", methods=["POST"])
@@ -286,7 +271,6 @@ def chat():
         return jsonify(result)
     except Exception as e:
         return str(e), 500
-
 
 if __name__ == "__main__":
     args = parse_arguments()   
