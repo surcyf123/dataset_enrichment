@@ -15,7 +15,11 @@ def get_gptq_models():
     url = "https://huggingface.co/TheBloke"
     browser.get(url)
     
-    # Use WebDriverWait along with expected_conditions to wait for a specific element to load
+    # Wait for the "Expand models" button to be clickable and click it
+    expand_button = WebDriverWait(browser, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Expand')]")))
+    expand_button.click()
+    
+    # Wait for a moment to ensure all models are loaded
     WebDriverWait(browser, 30).until(EC.presence_of_element_located((By.TAG_NAME, 'a')))
     
     # Find all links
