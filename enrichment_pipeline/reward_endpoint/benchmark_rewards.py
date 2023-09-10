@@ -131,7 +131,7 @@ class RewardEndpoint:
     def __init__(self, gpu_ids, data):
         self.gpu_ids = gpu_ids
         self.data = data
-        self.results = []
+        self.results = {}
         self.lock = threading.Lock()  # To safely update results from multiple threads
 
         model_classes = [OpenAssistantRewardModel, ReciprocateRewardModel, DirectPreferenceRewardModel]
@@ -158,11 +158,17 @@ class RewardEndpoint:
         for idx, entry in enumerate(self.data[1:], 2):  # Starting from the second entry
             prompt = entry["prompt"].strip('\n')
             completion = entry["completions"].strip('\n')
-            raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-            score = raw_rewards[0].item()
-            with self.lock:
-                self.results.append({reward_fn.name: score})
-            logging.info(f"Prompt {idx}: {reward_fn.name} {score:.4f}")
+            try:
+                raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
+                score = raw_rewards[0].item()
+                with self.lock:
+                    if idx not in self.results:
+                        self.results[idx] = {}
+                    self.results[idx][reward_fn.name] = score
+                logging.info(f"Prompt {idx}: {reward_fn.name} {score:.4f}")
+            except torch.cuda.OutOfMemoryError:
+                logging.error(f"Ran out of GPU memory on prompt {idx} for model {reward_fn.name}. Skipping this prompt.")
+                torch.cuda.empty_cache()
         end_time = time.time()
 
         elapsed_time = end_time - start_time
@@ -176,26 +182,18 @@ with open(file_path, 'r') as f:
 # Main execution flow
 endpoint = RewardEndpoint(gpu_ids=[0, 1, 2], data=data)
 
-def process_data_on_gpu(data, reward_function):
-    results = []
-    for idx, entry in enumerate(data, 1):  # Start indexing from 1
-        prompt = entry["prompt"].strip('\n')
-        completion = entry["completions"].strip('\n')
-        raw_rewards = reward_function.apply(str(prompt), [str(completion)])
-        score = raw_rewards[0].item()
-        reward = {reward_function.name: score}
-        row_data = {'Prompt Number': idx}
-        row_data.update(reward)
-        results.append(row_data)
-    return results
+# Convert the results to a list for CSV writing
+csv_rows = []
+for idx, scores in endpoint.results.items():
+    row_data = {'Prompt Number': idx}
+    row_data.update(scores)
+    csv_rows.append(row_data)
 
-results = process_data_on_gpu(data, endpoint)
-
+# Write to CSV
 csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
 with open(csv_path, 'w', newline='') as csvfile:
     fieldnames = ['Prompt Number', 'RLHF', "Reciprocate", "DPO"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
-    for row_data in results:
+    for row_data in csv_rows:
         writer.writerow(row_data)
-
