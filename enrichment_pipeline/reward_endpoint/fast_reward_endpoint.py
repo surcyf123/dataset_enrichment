@@ -146,13 +146,28 @@ class RewardEndpoint:
         self.reward_functions[index] = model_class(device=f"cuda:{self.gpu_ids[index]}")
 
     def calculate_total_reward(self, prompt, completion):
-        """Calculate total reward for a given prompt and its completion."""
         model_scores = {}
-        for reward_fn in self.reward_functions:
+        
+        # Helper function to calculate reward in a thread
+        def worker(reward_fn, prompt, completion, model_scores):
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
             score = raw_rewards[0].item()
             model_scores[reward_fn.name] = score
-            logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
+            # logging.info(f"Prompt {prompt[:30]}: {reward_fn.name} {score:.4f}")
+
+        # Start threads for each model
+        threads = []
+        for reward_fn in self.reward_functions:
+            thread = threading.Thread(target=worker, args=(reward_fn, prompt, completion, model_scores))
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to finish
+        for thread in threads:
+            thread.join()
+
+        logging.info(f"Scores: {model_scores}")
+
         return model_scores
 
 def parse_arguments():
