@@ -7,8 +7,6 @@ import concurrent.futures
 import logging
 from flask import Flask, request, jsonify
 import argparse
-import threading
-
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
@@ -124,50 +122,20 @@ class RewardEndpoint:
     def __init__(self, gpu_ids):
         logging.info("Initializing RewardEndpoint with GPU IDs: %s", gpu_ids)
         self.gpu_ids = gpu_ids
-        self.reward_functions = [None, None, None]
-
-        # Create threads to load models concurrently
-        threads = [
-            threading.Thread(target=self._load_model, args=(OpenAssistantRewardModel, 0)),
-            threading.Thread(target=self._load_model, args=(ReciprocateRewardModel, 1)),
-            threading.Thread(target=self._load_model, args=(DirectPreferenceRewardModel, 2))
+        self.reward_functions = [
+            OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
+            ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
+            DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
         ]
 
-        # Start the threads
-        for thread in threads:
-            thread.start()
-
-        # Wait for all threads to finish
-        for thread in threads:
-            thread.join()
-
-    def _load_model(self, model_class, index):
-        """Helper method to load a model."""
-        self.reward_functions[index] = model_class(device=f"cuda:{self.gpu_ids[index]}")
-
     def calculate_total_reward(self, prompt, completion):
+        """Calculate total reward for a given prompt and its completion."""
         model_scores = {}
-        
-        # Helper function to calculate reward in a thread
-        def worker(reward_fn, prompt, completion, model_scores):
+        for reward_fn in self.reward_functions:
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
             score = raw_rewards[0].item()
             model_scores[reward_fn.name] = score
-            # logging.info(f"Prompt {prompt[:30]}: {reward_fn.name} {score:.4f}")
-
-        # Start threads for each model
-        threads = []
-        for reward_fn in self.reward_functions:
-            thread = threading.Thread(target=worker, args=(reward_fn, prompt, completion, model_scores))
-            threads.append(thread)
-            thread.start()
-
-        # Wait for all threads to finish
-        for thread in threads:
-            thread.join()
-
-        logging.info(f"Scores: {model_scores}")
-
+            logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
         return model_scores
 
 def parse_arguments():

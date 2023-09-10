@@ -125,8 +125,6 @@ class BertRelevanceRewardModel(BaseRewardModel):
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
 
-
-
 class MpnetRelevanceModel(BaseRewardModel):
     diversity_model_path = "sentence-transformers/all-mpnet-base-v2"
     
