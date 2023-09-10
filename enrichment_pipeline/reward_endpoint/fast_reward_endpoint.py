@@ -8,9 +8,17 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
+from multiprocessing import Process, Queue, Event
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", default=30000, type=int)
+    return parser.parse_args()
+
 
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
@@ -214,37 +222,53 @@ class RewardEndpoint:
     def __init__(self, gpu_ids):
         logging.info("Initializing RewardEndpoint with GPU IDs: %s", gpu_ids)
         self.gpu_ids = gpu_ids
-        self.reward_functions = [
-            OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
-            ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
-            DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
-            RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
+        self.models = [
+            OpenAssistantRewardModel,
+            ReciprocateRewardModel,
+            DirectPreferenceRewardModel,
+            # RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
         ]
+        self.queues = [Queue() for _ in self.models]
+        self.return_queues = [Queue() for _ in self.models]
+        self.exit_events = [Event() for _ in self.models]
+
+        self.processes = []
+        for i, model_class in enumerate(self.models):
+            p = Process(target=self._worker, args=(model_class, self.gpu_ids[i], self.queues[i], self.return_queues[i], self.exit_events[i]))
+            p.start()
+            self.processes.append(p)
+
+    def _worker(self, model_class, gpu_id, queue, return_queue, exit_event):
+        """Worker function to run on each process."""
+        reward_fn = model_class(device=f"cuda:{gpu_id}")
+        while not exit_event.is_set():
+            prompt, completion = queue.get()
+            raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
+            if isinstance(raw_rewards, dict):  # Handle dictionary results if any
+                return_queue.put({reward_fn.name: raw_rewards[reward_fn.name][0].item()})
+            else:
+                return_queue.put({reward_fn.name: raw_rewards[0].item()})
 
     def calculate_total_reward(self, prompt, completion):
-        """Calculate total reward for a given prompt and its completion."""
-        model_scores = {}
-        for reward_fn in self.reward_functions:
-            raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-            
-            # Check if raw_rewards is a dictionary (specifically for RelevanceRewardModel)
-            if isinstance(raw_rewards, dict):
-                for model_name, scores in raw_rewards.items():
-                    score = scores[0].item()
-                    model_scores[model_name] = score
-                    logging.info(f"Prompt {prompt[:20]}: {model_name} {score:.4f}")
-            else:
-                score = raw_rewards[0].item()
-                model_scores[reward_fn.name] = score
-                logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
+        """Calculate total reward for a given prompt and its completion using multiprocessing."""
+        # Send data to each process for computation
+        for q in self.queues:
+            q.put((prompt, completion))
 
+        # Collect results
+        model_scores = {}
+        for r_q in self.return_queues:
+            model_scores.update(r_q.get())
+
+        logging.info(f"Model Scores: {model_scores}")
         return model_scores
 
-
-def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default=30000, type=int)
-    return parser.parse_args()
+    def close(self):
+        """Close all processes."""
+        for event in self.exit_events:
+            event.set()
+        for p in self.processes:
+            p.join()
 
 app = Flask(__name__)
 @app.route("/", methods=["POST"])
@@ -263,9 +287,10 @@ def chat():
     except Exception as e:
         return str(e), 500
 
+
 if __name__ == "__main__":
     args = parse_arguments()   
-    rw = RewardEndpoint(gpu_ids=[0, 1, 2, 3])
+    rw = RewardEndpoint(gpu_ids=[0, 1, 2])
 
     # Testing on launch
     prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
