@@ -222,29 +222,38 @@ class RewardEndpoint:
     def __init__(self, gpu_ids):
         logging.info("Initializing RewardEndpoint with GPU IDs: %s", gpu_ids)
         self.gpu_ids = gpu_ids
-        self.models = [
-            OpenAssistantRewardModel,
-            ReciprocateRewardModel,
-            DirectPreferenceRewardModel,
-            RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
+        
+        # Create a list of model classes and their initialization arguments
+        self.models_and_args = [
+            (OpenAssistantRewardModel, {"device": f"cuda:{gpu_ids[0]}"}),
+            (ReciprocateRewardModel, {"device": f"cuda:{gpu_ids[1]}"}),
+            (DirectPreferenceRewardModel, {"device": f"cuda:{gpu_ids[2]}"}),
+            (RelevanceRewardModel, {
+                "device": f"cuda:{gpu_ids[3]}",
+                "models": [
+                    BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"),
+                    MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")
+                ]
+            }),
         ]
-        self.queues = [Queue() for _ in self.models]
-        self.return_queues = [Queue() for _ in self.models]
-        self.exit_events = [Event() for _ in self.models]
+        
+        self.queues = [Queue() for _ in self.models_and_args]
+        self.return_queues = [Queue() for _ in self.models_and_args]
+        self.exit_events = [Event() for _ in self.models_and_args]
 
         self.processes = []
-        for i, model_class in enumerate(self.models):
-            p = Process(target=self._worker, args=(model_class, self.gpu_ids[i], self.queues[i], self.return_queues[i], self.exit_events[i]))
+        for i, (model_class, model_args) in enumerate(self.models_and_args):
+            p = Process(target=self._worker, args=(model_class, model_args, self.gpu_ids[i], self.queues[i], self.return_queues[i], self.exit_events[i]))
             p.start()
             self.processes.append(p)
 
-    def _worker(self, model_class, gpu_id, queue, return_queue, exit_event):
+    def _worker(self, model_class, model_args, gpu_id, queue, return_queue, exit_event):
         """Worker function to run on each process."""
-        reward_fn = model_class(device=f"cuda:{gpu_id}")
+        reward_fn = model_class(**model_args)  # Instantiate the model within the process
         while not exit_event.is_set():
             prompt, completion = queue.get()
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-            if isinstance(raw_rewards, dict):  # Handle dictionary results if any
+            if isinstance(raw_rewards, dict):
                 return_queue.put({reward_fn.name: raw_rewards[reward_fn.name][0].item()})
             else:
                 return_queue.put({reward_fn.name: raw_rewards[0].item()})

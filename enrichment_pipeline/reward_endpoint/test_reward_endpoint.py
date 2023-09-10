@@ -62,9 +62,8 @@ url_timings = {url: [] for url in urls}
 for url in urls:
     print(f"Testing for URL: {url}")
 
-    # Randomly select 50 unique conversational words
-    for i in range(300):
-        random_combination = random.sample(conversational_words, 160)
+    for i in range(50): # How many requests to send
+        random_combination = random.sample(conversational_words, 160) # How many random words in each request
         data = {
             "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
             "prompt": prompt,
