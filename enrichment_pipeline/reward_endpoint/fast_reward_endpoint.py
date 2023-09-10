@@ -226,7 +226,7 @@ class RewardEndpoint:
             OpenAssistantRewardModel,
             ReciprocateRewardModel,
             DirectPreferenceRewardModel,
-            # RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
+            RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
         ]
         self.queues = [Queue() for _ in self.models]
         self.return_queues = [Queue() for _ in self.models]
@@ -290,7 +290,7 @@ def chat():
 
 if __name__ == "__main__":
     args = parse_arguments()   
-    rw = RewardEndpoint(gpu_ids=[0, 1, 2])
+    rw = RewardEndpoint(gpu_ids=[0, 1, 2, 3])
 
     # Testing on launch
     prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
