@@ -5,6 +5,8 @@ import json
 import csv
 import concurrent.futures
 import logging
+import threading
+import time
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
@@ -43,7 +45,7 @@ class OpenAssistantRewardModel(BaseRewardModel):
         logging.info("Initializing OpenAssistantRewardModel...")
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(self.reward_model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_name).to(self.device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_name, torch_dtype=torch.float32).to(self.device)
 
     @property
     def name(self) -> str:
@@ -65,7 +67,7 @@ class ReciprocateRewardModel(BaseRewardModel):
         logging.info("Initializing ReciprocateRewardModel...")
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(self.reward_model_path, revision=self.revision)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_path, revision=self.revision, torch_dtype=torch.float16).to(self.device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_path, revision=self.revision, torch_dtype=torch.float32).to(self.device)
 
     @property
     def name(self) -> str:
@@ -89,7 +91,7 @@ class DirectPreferenceRewardModel(BaseRewardModel):
         self.device = device
         self.penalty = 1.2
         self.tokenizer = AutoTokenizer.from_pretrained(self.reward_model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(self.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
+        self.model = AutoModelForCausalLM.from_pretrained(self.reward_model_name, trust_remote_code=True, torch_dtype=torch.float32).to(self.device)
 
     @property
     def name(self) -> str:
@@ -126,38 +128,62 @@ class DirectPreferenceRewardModel(BaseRewardModel):
 class RewardEndpoint:
     """Endpoint to calculate rewards using various reward models."""
 
-    def __init__(self, gpu_ids):
-        logging.info("Initializing RewardEndpoint with GPU IDs: %s", gpu_ids)
+    def __init__(self, gpu_ids, data):
         self.gpu_ids = gpu_ids
-        self.reward_functions = [
-            OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
-            ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
-            DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
-        ]
+        self.data = data
+        self.results = []
+        self.lock = threading.Lock()  # To safely update results from multiple threads
 
-    def calculate_total_reward(self, prompt, completion, prompt_number):
-        """Calculate total reward for a given prompt and its completion."""
-        model_scores = {}
-        for reward_fn in self.reward_functions:
+        model_classes = [OpenAssistantRewardModel, ReciprocateRewardModel, DirectPreferenceRewardModel]
+        self.threads = [
+            threading.Thread(target=self.initialize_and_score, args=(model_class, gpu_id))
+            for model_class, gpu_id in zip(model_classes, gpu_ids)
+        ]
+        for thread in self.threads:
+            thread.start()
+        for thread in self.threads:
+            thread.join()  # Wait for all threads to finish
+
+    def initialize_and_score(self, model_class, gpu_id):
+        logging.info(f"Initializing model: {model_class.__name__} on GPU {gpu_id}")
+        reward_fn = model_class(device=f"cuda:{gpu_id}")
+
+        # Process the first entry separately to start the timer after it
+        first_entry = self.data[0]
+        prompt = first_entry["prompt"].strip('\n')
+        completion = first_entry["completions"].strip('\n')
+        reward_fn.apply(str(prompt), [str(completion)])
+
+        start_time = time.time()
+        for idx, entry in enumerate(self.data[1:], 2):  # Starting from the second entry
+            prompt = entry["prompt"].strip('\n')
+            completion = entry["completions"].strip('\n')
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
             score = raw_rewards[0].item()
-            model_scores[reward_fn.name] = score
-            logging.info(f"Prompt {prompt_number}: {reward_fn.name} {score:.4f}")
-        return model_scores
+            with self.lock:
+                self.results.append({reward_fn.name: score})
+            logging.info(f"Prompt {idx}: {reward_fn.name} {score:.4f}")
+        end_time = time.time()
 
-# Main execution flow
-endpoint = RewardEndpoint(gpu_ids=[0, 1, 2])
+        elapsed_time = end_time - start_time
+        avg_time_per_prompt = elapsed_time / (len(self.data) - 1)  # Subtracting one for the first entry
+        logging.info(f"Average time per prompt-completion pair for {model_class.__name__}: {avg_time_per_prompt:.4f} seconds")
 
 file_path = "/root/dataset_enrichment/dataset/benchmarking_completions.json"
 with open(file_path, 'r') as f:
     data = json.load(f)
+
+# Main execution flow
+endpoint = RewardEndpoint(gpu_ids=[0, 1, 2], data=data)
 
 def process_data_on_gpu(data, reward_function):
     results = []
     for idx, entry in enumerate(data, 1):  # Start indexing from 1
         prompt = entry["prompt"].strip('\n')
         completion = entry["completions"].strip('\n')
-        reward = reward_function.calculate_total_reward(prompt, completion, idx)
+        raw_rewards = reward_function.apply(str(prompt), [str(completion)])
+        score = raw_rewards[0].item()
+        reward = {reward_function.name: score}
         row_data = {'Prompt Number': idx}
         row_data.update(reward)
         results.append(row_data)
