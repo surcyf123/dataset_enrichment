@@ -222,6 +222,7 @@ class RewardEndpoint:
             OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
             ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
             DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
+            RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
         ]
 
     def calculate_total_reward(self, prompt, completion):
