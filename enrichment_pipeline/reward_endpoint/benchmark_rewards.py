@@ -5,8 +5,6 @@ import json
 import csv
 import concurrent.futures
 import logging
-import threading
-import time
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +43,7 @@ class OpenAssistantRewardModel(BaseRewardModel):
         logging.info("Initializing OpenAssistantRewardModel...")
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(self.reward_model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_name, torch_dtype=torch.float32).to(self.device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.reward_model_name).to(self.device)
 
     @property
     def name(self) -> str:
@@ -73,14 +71,12 @@ class ReciprocateRewardModel(BaseRewardModel):
     def name(self) -> str:
         return "Reciprocate"
 
-    def reward_single(self, prompt: str, completion: str) -> float:
-        with torch.no_grad():
-            message = f"{prompt}</s>{completion}</s>"
-            inputs = self.tokenizer(message, return_tensors="pt", truncation=True).to(self.device)
-            return float(self.model(**inputs)[0].item())
-
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
+        with torch.no_grad():
+            messages = [f"{prompt}</s>{completion}</s>" for completion in completions]
+            inputs = self.tokenizer(messages, return_tensors="pt", padding=True, truncation=True).to(self.device)
+            logits = self.model(**inputs).logits
+            return logits[:, 0]
 
 
 class DirectPreferenceRewardModel(BaseRewardModel):
@@ -93,7 +89,7 @@ class DirectPreferenceRewardModel(BaseRewardModel):
         self.device = device
         self.penalty = 1.2
         self.tokenizer = AutoTokenizer.from_pretrained(self.reward_model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(self.reward_model_name, trust_remote_code=True, torch_dtype=torch.float32).to(self.device)
+        self.model = AutoModelForCausalLM.from_pretrained(self.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
 
     @property
     def name(self) -> str:
@@ -117,9 +113,6 @@ class DirectPreferenceRewardModel(BaseRewardModel):
                 labels[labels == -100] = 0
 
                 logits = self.model(combined.unsqueeze(0)).logits[:, :-1, :]
-                for i in range(len(prompt_part) + 1, len(combined) - 1):
-                    logits[:, i, :] = self.logit_penalty(combined[len(prompt_part):i], logits[:, i, :])
-                
                 logits = logits.log_softmax(-1)
                 per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(0).unsqueeze(2)).squeeze(2)
                 mask = (labels != -100).unsqueeze(0)
@@ -130,84 +123,52 @@ class DirectPreferenceRewardModel(BaseRewardModel):
                     rewards.append(reward)
         return torch.stack(rewards)
 
-    def logit_penalty(self, input_ids: torch.LongTensor, logit: torch.FloatTensor) -> torch.FloatTensor:
-        uniques, counts = input_ids.unique(return_counts=True)
-        score = torch.gather(logit, 1, uniques.unsqueeze(0))
-
-        score = torch.where(score < 0, score * (self.penalty ** counts), score / (self.penalty ** counts))
-
-        logit.scatter_(1, uniques.unsqueeze(0), score.to(logit.dtype))
-        return logit
-
 class RewardEndpoint:
     """Endpoint to calculate rewards using various reward models."""
 
-    def __init__(self, gpu_ids, data):
+    def __init__(self, gpu_ids):
+        logging.info("Initializing RewardEndpoint with GPU IDs: %s", gpu_ids)
         self.gpu_ids = gpu_ids
-        self.data = data
-        self.results = {}
-        self.lock = threading.Lock()  # To safely update results from multiple threads
-
-        model_classes = [OpenAssistantRewardModel, ReciprocateRewardModel, DirectPreferenceRewardModel]
-        self.threads = [
-            threading.Thread(target=self.initialize_and_score, args=(model_class, gpu_id))
-            for model_class, gpu_id in zip(model_classes, gpu_ids)
+        self.reward_functions = [
+            OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
+            ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
+            DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
         ]
-        for thread in self.threads:
-            thread.start()
-        for thread in self.threads:
-            thread.join()  # Wait for all threads to finish
 
-    def initialize_and_score(self, model_class, gpu_id):
-        logging.info(f"Initializing model: {model_class.__name__} on GPU {gpu_id}")
-        reward_fn = model_class(device=f"cuda:{gpu_id}")
+    def calculate_total_reward(self, prompt, completion, prompt_number):
+        """Calculate total reward for a given prompt and its completion."""
+        model_scores = {}
+        for reward_fn in self.reward_functions:
+            raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
+            score = raw_rewards[0].item()
+            model_scores[reward_fn.name] = score
+            logging.info(f"Prompt {prompt_number}: {reward_fn.name} {score:.4f}")
+        return model_scores
 
-        # Process the first entry separately to start the timer after it
-        first_entry = self.data[0]
-        prompt = first_entry["prompt"].strip('\n')
-        completion = first_entry["completions"].strip('\n')
-        reward_fn.apply(str(prompt), [str(completion)])
-
-        start_time = time.time()
-        for idx, entry in enumerate(self.data[1:], 2):  # Starting from the second entry
-            prompt = entry["prompt"].strip('\n')
-            completion = entry["completions"].strip('\n')
-            try:
-                raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-                score = raw_rewards[0].item()
-                with self.lock:
-                    if idx not in self.results:
-                        self.results[idx] = {}
-                    self.results[idx][reward_fn.name] = score
-                logging.info(f"Prompt {idx}: {reward_fn.name} {score:.4f}")
-            except torch.cuda.OutOfMemoryError:
-                logging.error(f"Ran out of GPU memory on prompt {idx} for model {reward_fn.name}. Skipping this prompt.")
-                torch.cuda.empty_cache()
-        end_time = time.time()
-
-        elapsed_time = end_time - start_time
-        avg_time_per_prompt = elapsed_time / (len(self.data) - 1)  # Subtracting one for the first entry
-        logging.info(f"Average time per prompt-completion pair for {model_class.__name__}: {avg_time_per_prompt:.4f} seconds")
+# Main execution flow
+endpoint = RewardEndpoint(gpu_ids=[0, 1, 2])
 
 file_path = "/root/dataset_enrichment/dataset/benchmarking_completions.json"
 with open(file_path, 'r') as f:
     data = json.load(f)
 
-# Main execution flow
-endpoint = RewardEndpoint(gpu_ids=[0, 1, 2], data=data)
+def process_data_on_gpu(data, reward_function):
+    results = []
+    for idx, entry in enumerate(data, 0):
+        prompt = entry["prompt"].strip('\n')
+        completion = entry["completions"].strip('\n')
+        reward = reward_function.calculate_total_reward(prompt, completion, idx)
+        row_data = {'Prompt Number': idx}
+        row_data.update(reward)
+        results.append(row_data)
+    return results
 
-# Convert the results to a list for CSV writing
-csv_rows = []
-for idx, scores in endpoint.results.items():
-    row_data = {'Prompt Number': idx}
-    row_data.update(scores)
-    csv_rows.append(row_data)
+results = process_data_on_gpu(data, endpoint)
 
-# Write to CSV
 csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
 with open(csv_path, 'w', newline='') as csvfile:
     fieldnames = ['Prompt Number', 'RLHF', "Reciprocate", "DPO"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
-    for row_data in csv_rows:
+    for row_data in results:
         writer.writerow(row_data)
