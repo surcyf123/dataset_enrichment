@@ -1,5 +1,5 @@
 import torch
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM
 import json
 import csv
@@ -117,6 +117,94 @@ class DirectPreferenceRewardModel(BaseRewardModel):
                     rewards.append(reward)
         return torch.stack(rewards)
 
+class RelevanceRewardModel(BaseRewardModel):
+    @property
+    def name(self) -> str: 
+        return "Relevance Model"
+    
+    def __init__(self, device: str, models: List[BaseRewardModel]):
+        super().__init__()
+        self.device = device
+        self.models = models
+    
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        total_rewards = torch.zeros(len(completions), dtype=torch.float32).to(self.device)
+        
+        for model in self.models:
+            scores = model.get_rewards(prompt, completions)
+            total_rewards += scores
+        
+        # Average the scores from all models
+        total_rewards /= len(self.models)
+        
+        return total_rewards
+
+    def apply(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return self.get_rewards(prompt, completions)
+
+
+class BertRelevanceRewardModel(BaseRewardModel):
+    relevance_model_path = "bert-base-uncased"
+    
+    @property
+    def name(self) -> str:
+        return "Bert"
+    
+    def __init__(self, device: str):
+        super().__init__()
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(BertRelevanceRewardModel.relevance_model_path)
+        self.model = AutoModel.from_pretrained(BertRelevanceRewardModel.relevance_model_path).to(self.device)
+
+    def get_embedding(self, message: str) -> torch.FloatTensor:
+        encoded_input = self.tokenizer(message, padding=True, truncation=True, return_overflowing_tokens=True, return_tensors="pt").to(self.device)
+        _ = encoded_input.pop("overflow_to_sample_mapping")
+        with torch.no_grad():
+            embeddings = self.model(**encoded_input)
+        return torch.mean(F.normalize(mean_pooling(embeddings, encoded_input["attention_mask"]), p=2, dim=1), dim=0)
+    
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
+
+    def reward_single(self, prompt: str, completion: str) -> float:
+        completion_embedding = self.get_embedding(completion)
+        prompt_embedding = self.get_embedding(prompt)
+        return float(-((completion_embedding - prompt_embedding)**2).mean()**0.5)
+
+    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        return rewards
+
+class MpnetRelevanceModel(BaseRewardModel):
+    diversity_model_path = "sentence-transformers/all-mpnet-base-v2"
+    
+    @property
+    def name(self) -> str:
+        return "MPNet"
+    
+    def __init__(self, device: str):
+        super().__init__()
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(MpnetRelevanceModel.diversity_model_path)
+        self.model = AutoModel.from_pretrained(MpnetRelevanceModel.diversity_model_path).to(self.device)
+
+    def get_embeddings(self, sentences: List[str]) -> torch.FloatTensor:
+        encoded_input = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            embeddings = self.model(**encoded_input)
+        return F.normalize(mean_pooling(embeddings, encoded_input["attention_mask"]), p=2, dim=1)
+    
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return torch.tensor([self.reward_single(prompt, completion) for completion in completions], dtype=torch.float32).to(self.device)
+
+    def reward_single(self, prompt: str, completion: str) -> torch.FloatTensor:
+        embeddings = self.get_embeddings([completion])
+        prompt_embed = self.get_embeddings([prompt])
+        similarity = pairwise_cosine_similarity(prompt_embed, embeddings)
+        return torch.abs(similarity)
+
+    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        return rewards
+
 class RewardEndpoint:
     """Endpoint to calculate rewards using various reward models."""
 
@@ -127,6 +215,7 @@ class RewardEndpoint:
             OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
             ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
             DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
+            RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
         ]
 
     def calculate_total_reward(self, prompt, completion):
@@ -163,7 +252,7 @@ def chat():
 
 if __name__ == "__main__":
     args = parse_arguments()   
-    rw = RewardEndpoint(gpu_ids=[0, 1, 2])
+    rw = RewardEndpoint(gpu_ids=[0, 1, 2, 3])
 
     # Testing on launch
     prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"

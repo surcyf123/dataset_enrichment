@@ -1,12 +1,12 @@
 import requests
 import random
-
+import time
 # The API endpoint
 urls = [
     "http://172.218.204.83:2701", # "http://172.218.204.83:2456","http://172.218.204.83:2925","http://172.218.204.83:2148", # Server 4, 4x4090, ssh -p 2070 root@172.218.204.83 -L 8080:localhost:8080
     "http://37.27.2.44:60102", #vast7
-    "http://184.67.78.114:42098" # vast6
-    "http://142.182.6.112:55461" #vast5
+    "http://184.67.78.114:42098", # vast6
+    "http://142.182.6.112:55461", #vast5
     ]
 
 # # Your data
@@ -37,17 +37,43 @@ conversational_words = [
     "advise", "mention", "remark", "note"
 ]
 
+prompt =   """
+Sure! Here is a summary of the text in seven sentences:\n\nYoichiro Nambu, a Japanese-American physicist, passed away on July 5th at the age of 94. He shared the 2008 Nobel Prize in Physics for his work on spontaneous symmetry breaking. Nambu's research inspired others, including Peter Higgs and François Englert, to develop the theoretical mechanism for the Higgs boson. Higgs and Englert went on to share the 2013 Nobel Prize for their work. Nambu's work was described as ""an act of imagination"" that was ahead of its time by Frank Wilczek. Nambu was born in Tokyo and studied at the Imperial University before moving to the United States. He spent the majority of his career at the University of Chicago and became an American citizen in 1970.\nPrevious Question \nQuestion:Sure! Here's my question:\nGiven that Nambu's work on spontaneous symmetry breaking was so influential and groundbreaking, why do you think it took so long (nearly 50 years) for him to receive recognition in the form of the Nobel Prize?\nAnswer:This question is asking for a step-by-step answer. I will break down the steps as follows:\n\n1. Understand the speaker's message: First, I will read the passage and fully comprehend the speaker's message.\n2. Identify the main points: Once I have understood the message, I will identify the main points that the speaker is trying to convey.\n3. Analyze the information: I will analyze the information and consider how it relates to the question I am being asked.\n4. Provide a step-by-step answer: Based on the analysis, I will provide a step-by-step answer that follows the question asked.\n5. Explain my thoughts: Finally, I will explain my thoughts on the question and why I made the choices that I did.\n\nAsk one relevant and insightful question about the preceding context and previous questions\n
+"""
+
+# Dictionary to store time taken for each URL
+url_timings = {url: [] for url in urls}
+
 # Randomly select 50 unique conversational words
 for i in range(100):
     random_combination = random.sample(conversational_words, 40)
     data = {
         "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
-        "prompt": """
-    Sure! Here is a summary of the text in seven sentences:\n\nYoichiro Nambu, a Japanese-American physicist, passed away on July 5th at the age of 94. He shared the 2008 Nobel Prize in Physics for his work on spontaneous symmetry breaking. Nambu's research inspired others, including Peter Higgs and François Englert, to develop the theoretical mechanism for the Higgs boson. Higgs and Englert went on to share the 2013 Nobel Prize for their work. Nambu's work was described as ""an act of imagination"" that was ahead of its time by Frank Wilczek. Nambu was born in Tokyo and studied at the Imperial University before moving to the United States. He spent the majority of his career at the University of Chicago and became an American citizen in 1970.\nPrevious Question \nQuestion:Sure! Here's my question:\nGiven that Nambu's work on spontaneous symmetry breaking was so influential and groundbreaking, why do you think it took so long (nearly 50 years) for him to receive recognition in the form of the Nobel Prize?\nAnswer:This question is asking for a step-by-step answer. I will break down the steps as follows:\n\n1. Understand the speaker's message: First, I will read the passage and fully comprehend the speaker's message.\n2. Identify the main points: Once I have understood the message, I will identify the main points that the speaker is trying to convey.\n3. Analyze the information: I will analyze the information and consider how it relates to the question I am being asked.\n4. Provide a step-by-step answer: Based on the analysis, I will provide a step-by-step answer that follows the question asked.\n5. Explain my thoughts: Finally, I will explain my thoughts on the question and why I made the choices that I did.\n\nAsk one relevant and insightful question about the preceding context and previous questions\n
-    """,
+        "prompt": prompt,
         "completions": [random_combination]
     }
 
     for url in urls:
+        start_time = time.time()
         response = requests.post(url, json=data)
+        end_time = time.time()
+        
+        time_taken = end_time - start_time
+        url_timings[url].append(time_taken)
+        
+        print(f"Time taken for {url}: {time_taken:.4f} seconds")
         print(response.json())
+
+# Calculate statistics at the end
+print("\nTime statistics:")
+for url, timings in url_timings.items():
+    total_time = sum(timings)
+    avg_time = total_time / len(timings)
+    min_time = min(timings)
+    max_time = max(timings)
+    
+    print(f"URL: {url}")
+    print(f"  Total time: {total_time:.4f} seconds")
+    print(f"  Average time per request: {avg_time:.4f} seconds")
+    print(f"  Min time: {min_time:.4f} seconds")
+    print(f"  Max time: {max_time:.4f} seconds\n")
