@@ -235,11 +235,9 @@ class RewardEndpoint:
                 for model_name, scores in raw_rewards.items():
                     score = scores[0].item()
                     results[model_name] = score
-                    logging.info(f"Prompt {prompt[:20]}: {model_name} {score:.4f}")
             else:
                 score = raw_rewards[0].item()
                 results[reward_fn.name] = score
-                logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
 
         threads = []
         results = {}  # shared dictionary to store results from threads
@@ -248,11 +246,12 @@ class RewardEndpoint:
             t.start()
             threads.append(t)
             
-        # Wait for all threads to finish
         for t in threads:
             t.join()
-            
+        
         model_scores.update(results)
+        logging.info(f"Model scores: {model_scores}")
+
         return model_scores
 
 app = Flask(__name__)
