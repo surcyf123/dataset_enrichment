@@ -33,7 +33,23 @@ conversational_words = [
     "probably", "hope", "wish", "agree", "disagree", "understand", "remember", "forget",
     "think", "feel", "believe", "wonder", "guess", "chat", "talk", "speak", "listen",
     "hear", "tell", "ask", "answer", "question", "reply", "respond", "suggest", "recommend",
-    "advise", "mention", "remark", "note"
+    "advise", "mention", "remark", "note",
+    "hello", "goodbye", "please", "thanks", "sorry", "yes", "no", "maybe", "okay",
+    "hi", "bye", "welcome", "morning", "evening", "night", "sure", "absolutely", "definitely",
+    "probably", "hope", "wish", "agree", "disagree", "understand", "remember", "forget",
+    "think", "feel", "believe", "wonder", "guess", "chat", "talk", "speak", "listen",
+    "hear", "tell", "ask", "answer", "question", "reply", "respond", "suggest", "recommend",
+    "advise", "mention", "remark", "note", "hello", "goodbye", "please", "thanks", "sorry", "yes", "no", "maybe", "okay",
+    "hi", "bye", "welcome", "morning", "evening", "night", "sure", "absolutely", "definitely",
+    "probably", "hope", "wish", "agree", "disagree", "understand", "remember", "forget",
+    "think", "feel", "believe", "wonder", "guess", "chat", "talk", "speak", "listen",
+    "hear", "tell", "ask", "answer", "question", "reply", "respond", "suggest", "recommend",
+    "advise", "mention", "remark", "note", "hello", "goodbye", "please", "thanks", "sorry", "yes", "no", "maybe", "okay",
+    "hi", "bye", "welcome", "morning", "evening", "night", "sure", "absolutely", "definitely",
+    "probably", "hope", "wish", "agree", "disagree", "understand", "remember", "forget",
+    "think", "feel", "believe", "wonder", "guess", "chat", "talk", "speak", "listen",
+    "hear", "tell", "ask", "answer", "question", "reply", "respond", "suggest", "recommend",
+    "advise", "mention", "remark", "note",
 ]
 
 prompt =   """
@@ -47,8 +63,8 @@ for url in urls:
     print(f"Testing for URL: {url}")
 
     # Randomly select 50 unique conversational words
-    for i in range(20):
-        random_combination = random.sample(conversational_words, 40)
+    for i in range(300):
+        random_combination = random.sample(conversational_words, 160)
         data = {
             "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
             "prompt": prompt,
