@@ -8,6 +8,10 @@ import logging
 from flask import Flask, request, jsonify
 import argparse
 import threading
+from transformers import  AutoTokenizer, AutoModel
+from torchmetrics.functional import pairwise_cosine_similarity
+import torch.nn.functional as F
+
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
