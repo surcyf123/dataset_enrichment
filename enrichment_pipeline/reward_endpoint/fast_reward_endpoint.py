@@ -8,9 +8,15 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
+import threading
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", default=30000, type=int)
+    return parser.parse_args()
 
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0]
@@ -144,8 +150,6 @@ class RelevanceRewardModel(BaseRewardModel):
     def apply(self, prompt: str, completions: List[str]) -> Dict[str, torch.FloatTensor]:
         return self.get_rewards(prompt, completions)
 
-
-
 class BertRelevanceRewardModel(BaseRewardModel):
     relevance_model_path = "bert-base-uncased"
     
@@ -218,33 +222,38 @@ class RewardEndpoint:
             OpenAssistantRewardModel(device=f"cuda:{gpu_ids[0]}"),
             ReciprocateRewardModel(device=f"cuda:{gpu_ids[1]}"),
             DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
-            RelevanceRewardModel(device=f"cuda:{gpu_ids[3]}", models=[BertRelevanceRewardModel(device=f"cuda:{gpu_ids[3]}"), MpnetRelevanceModel(device=f"cuda:{gpu_ids[3]}")]),
         ]
 
     def calculate_total_reward(self, prompt, completion):
         """Calculate total reward for a given prompt and its completion."""
         model_scores = {}
-        for reward_fn in self.reward_functions:
+        
+        # Function to calculate rewards in a thread
+        def thread_fn(reward_fn, prompt, completion, results):
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
-            
-            # Check if raw_rewards is a dictionary (specifically for RelevanceRewardModel)
             if isinstance(raw_rewards, dict):
                 for model_name, scores in raw_rewards.items():
                     score = scores[0].item()
-                    model_scores[model_name] = score
+                    results[model_name] = score
                     logging.info(f"Prompt {prompt[:20]}: {model_name} {score:.4f}")
             else:
                 score = raw_rewards[0].item()
-                model_scores[reward_fn.name] = score
+                results[reward_fn.name] = score
                 logging.info(f"Prompt {prompt[:20]}: {reward_fn.name} {score:.4f}")
 
+        threads = []
+        results = {}  # shared dictionary to store results from threads
+        for reward_fn in self.reward_functions:
+            t = threading.Thread(target=thread_fn, args=(reward_fn, prompt, completion, results))
+            t.start()
+            threads.append(t)
+            
+        # Wait for all threads to finish
+        for t in threads:
+            t.join()
+            
+        model_scores.update(results)
         return model_scores
-
-
-def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default=30000, type=int)
-    return parser.parse_args()
 
 app = Flask(__name__)
 @app.route("/", methods=["POST"])
