@@ -211,7 +211,7 @@ def process_data_on_gpu(data, reward_function):
                 results.append(row_data)
     return results
 
-file_path = "/root/dataset_enrichment/dataset/example_answers.json"
+file_path = "/root/dataset_enrichment/dataset/benchmarking_completions.json"
 
 # Load the data from the file
 with open(file_path, 'r') as f:
