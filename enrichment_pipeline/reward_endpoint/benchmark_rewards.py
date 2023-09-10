@@ -135,14 +135,14 @@ class RewardEndpoint:
             DirectPreferenceRewardModel(device=f"cuda:{gpu_ids[2]}"),
         ]
 
-    def calculate_total_reward(self, prompt, completion):
+    def calculate_total_reward(self, prompt, completion, prompt_number):
         """Calculate total reward for a given prompt and its completion."""
         model_scores = {}
         for reward_fn in self.reward_functions:
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
             score = raw_rewards[0].item()
             model_scores[reward_fn.name] = score
-            logging.info(f"Model: {reward_fn.name}, Score: {score:.4f}")
+            logging.info(f"Prompt {prompt_number}: {reward_fn.name} {score:.4f}")
         return model_scores
 
 # Main execution flow
@@ -152,25 +152,18 @@ file_path = "/root/dataset_enrichment/dataset/benchmarking_completions.json"
 with open(file_path, 'r') as f:
     data = json.load(f)
 
-data_split = [data[i::3] for i in range(3)]
-
 def process_data_on_gpu(data, reward_function):
     results = []
     for idx, entry in enumerate(data, 1):  # Start indexing from 1
-        logging.info(f"Processing prompt number {idx}")
         prompt = entry["prompt"].strip('\n')
         completion = entry["completions"].strip('\n')
-        reward = reward_function.calculate_total_reward(prompt, completion)
+        reward = reward_function.calculate_total_reward(prompt, completion, idx)
         row_data = {'Prompt Number': idx}
         row_data.update(reward)
         results.append(row_data)
     return results
 
-results = []
-with concurrent.futures.ThreadPoolExecutor() as executor:
-    futures = [executor.submit(process_data_on_gpu, data_split[i], endpoint) for i in range(3)]
-    for future in concurrent.futures.as_completed(futures):
-        results.extend(future.result())
+results = process_data_on_gpu(data, endpoint)
 
 csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
 with open(csv_path, 'w', newline='') as csvfile:
@@ -179,3 +172,4 @@ with open(csv_path, 'w', newline='') as csvfile:
     writer.writeheader()
     for row_data in results:
         writer.writerow(row_data)
+
