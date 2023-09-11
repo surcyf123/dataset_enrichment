@@ -26,7 +26,3 @@ nvm alias default 14.21.3
 source ~/.bashrc
 # Installing pm2 globally
 npm install -g pm2
-
-# pip install flask
-# pip install nvitop
-# pip install torchmetrics
