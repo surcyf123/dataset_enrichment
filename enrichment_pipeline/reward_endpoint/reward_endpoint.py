@@ -7,17 +7,11 @@ from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
 
-
 # TODO 
 # look into optimizations for the reward models (quantization, clearning cache, make more memory efficient/faster)
-# implement nsfw filter
-# how to fix the initial high variability of normalization after reset because count = 0?
-# improve loading speed of the models (also through quantization? test how quant models affect scores and what the variability is)
-# add more logging for checks/debugging; try, excepts; improved error codes for API call fails
-# organize dict into reward models and masks
-# add diversity model
-
-
+# Test how quant models affect scores and what the variability is)
+# organize dict into reward models and masks - low priority
+# add batch processing
 
 class BaseRewardModel:
     
