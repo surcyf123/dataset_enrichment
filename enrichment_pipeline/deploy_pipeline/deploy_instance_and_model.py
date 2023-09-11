@@ -17,21 +17,26 @@ active_branch = "main"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
-reward_endpoints = [
-    "http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378", # Server 1, 4x4090, ssh -p 40243 root@90.84.239.86 -L 8080:localhost:8080
-    "http://36.225.152.8:40594","http://36.225.152.8:40565","http://36.225.152.8:40512","http://36.225.152.8:40554", # Server 2, 4x4090, ssh -p 40543 root@36.225.152.8 -L 8080:localhost:8080
-    "http://81.79.125.89:45654","http://81.79.125.89:45829","http://81.79.125.89:45395","http://81.79.125.89:45550", # Server 3, 4x4090 ssh -p 45648 root@81.79.125.89 -L 8080:localhost:8080
-    ]
+reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", "http://142.182.6.112:55430", "http://142.182.6.112:55430", #"vast2",
+    "http://184.67.78.114:42036", "http://184.67.78.114:42091", "http://184.67.78.114:42082", "http://184.67.78.114:42093", # "vast3",
+    "http://37.27.2.44:60113", "http://37.27.2.44:60180", "http://37.27.2.44:60151", "http://37.27.2.44:60181"] # vast 4
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=['TheBloke/Airochronos-L2-13B-GPTQ','TheBloke/Stheno-Inverted-L2-13B-GPTQ','TheBloke/Mythical-Destroyer-L2-13B-GPTQ','TheBloke/llama-2-13B-Guanaco-QLoRA-GPTQ','cerebras/btlm-3b-8k-base','TheBloke/Synthia-13B-GPTQ','TheBloke/Hermes-LLongMA-2-7B-8K-GPTQ','TheBloke/Llama-2-13B-GPTQ']
+models_to_test=['TheBloke/airoboros-l2-13b-gpt4-2.0-GPTQ',
+ 'TheBloke/Baichuan2-13B-Chat-GPTQ',
+ 'TheBloke/YuLan-Chat-2-13B-GPTQ',
+ 'TheBloke/Kimiko-v2-13B-GPTQ',
+ 'TheBloke/Mythalion-13B-GPTQ',
+ 'TheBloke/Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ',
+ 'TheBloke/LosslessMegaCoder-Llama2-13B-Mini-GPTQ',
+ 'TheBloke/Llama2-13B-MegaCode2-OASST-GPTQ']
 
 
 # First we launch the instance and install dependancies
 
 # Finds all available instances
-gpu_name = "RTX_3090"
+gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
 search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "dph_total"'
