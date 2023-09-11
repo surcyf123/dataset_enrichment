@@ -12,14 +12,14 @@ import time
 from typing import Tuple, Dict
 import csv
 import random
+with open("../dataset/only_prompts.json", "r") as f:
+    prompts = json.load(f)
 random.seed(42)
 random.shuffle(prompts)
 sample_size = 250
 sampled_prompts = prompts[:sample_size]
 from tqdm import tqdm
-with open("../dataset/only_prompts.json", "r") as f:
-    prompts = json.load(f)
-    
+
 
 hyperparameter_searches = {
     "num_tokens" : [200],
