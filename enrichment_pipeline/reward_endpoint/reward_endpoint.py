@@ -156,7 +156,7 @@ class OpenAssistantRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
-        self.mean, self.var = 2.27, 2.51
+        self.mean, self.var = 0.75, 1.69
         self.tokenizer = AutoTokenizer.from_pretrained(OpenAssistantRewardModel.reward_model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(OpenAssistantRewardModel.reward_model_name).to(self.device)
     def reward_single(self, prompt: str, completion: str) -> float:
@@ -178,7 +178,7 @@ class ReciprocateRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
-        self.mean, self.var = 
+        self.mean, self.var = 2.91, 13.35
         self.tokenizer = AutoTokenizer.from_pretrained(ReciprocateRewardModel.reward_model_path, revision=ReciprocateRewardModel.revision)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             ReciprocateRewardModel.reward_model_path,
@@ -205,7 +205,7 @@ class DirectPreferenceRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
-        self.mean, self.var = -11, 5
+        self.mean, self.var = -11.78, 4.36
         self.penalty = 1.2
         self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModel.reward_model_name)
         self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModel.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
