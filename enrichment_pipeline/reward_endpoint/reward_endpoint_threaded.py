@@ -9,6 +9,8 @@ from torchmetrics.functional import pairwise_cosine_similarity
 import torch.nn.functional as F
 from abc import abstractmethod
 import threading
+import time
+import csv
 
 # Set the logging level
 logging.basicConfig(level=logging.INFO)
@@ -212,6 +214,7 @@ class MpnetRelevanceModel(BaseRewardModel):
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
 
+
 class RewardEndpoint:
     """Endpoint to calculate rewards using various reward models."""
 
@@ -231,6 +234,7 @@ class RewardEndpoint:
         
         # Function to calculate rewards in a thread
         def thread_fn(reward_fn, prompt, completion, results):
+            start_time = time.time()  # Start time for this thread
             raw_rewards = reward_fn.apply(str(prompt), [str(completion)])
             if isinstance(raw_rewards, dict):
                 for model_name, scores in raw_rewards.items():
@@ -239,9 +243,20 @@ class RewardEndpoint:
             else:
                 score = raw_rewards[0].item()
                 results[reward_fn.name] = score
+            end_time = time.time()  # End time for this thread
+            elapsed_time = end_time - start_time
+            logging.info(f"{reward_fn.name} took {elapsed_time} seconds to compute.")
+            
+            # Write to CSV
+            with open('thread_times.csv', 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([reward_fn.name, elapsed_time])
 
         threads = []
         results = {}  # shared dictionary to store results from threads
+        
+        all_threads_start_time = time.time()  # Start time for all threads
+        
         for reward_fn in self.reward_functions:
             t = threading.Thread(target=thread_fn, args=(reward_fn, prompt, completion, results))
             t.start()
@@ -250,10 +265,20 @@ class RewardEndpoint:
         for t in threads:
             t.join()
         
+        all_threads_end_time = time.time()  # End time for all threads
+        total_time = all_threads_end_time - all_threads_start_time
+        logging.info(f"Total time taken for all threads: {total_time} seconds")
+        
+        # Write total time to CSV
+        with open('/mnt/data/thread_times.csv', 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Total", total_time])
+        
         model_scores.update(results)
         logging.info(f"Model scores: {model_scores}")
 
         return model_scores
+
 
 app = Flask(__name__)
 @app.route("/", methods=["POST"])

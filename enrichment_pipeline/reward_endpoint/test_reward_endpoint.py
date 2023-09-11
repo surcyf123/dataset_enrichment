@@ -28,12 +28,12 @@ CONVERSATIONAL_WORDS = [
     "advise", "mention", "remark", "note",
 ]
 
-def pick_random_words(word_list, num_words=40):
+def pick_random_words(word_list, num_words):
     """Return a list of randomly picked words with replacement."""
     return [random.choice(word_list) for _ in range(num_words)]
 
 # Send requests and measure time
-def test_url(url, note, num_requests=50, num_words=40):
+def test_url(url, note, num_requests, num_words):
     timings = []
     failed = False
     example_output = None
@@ -81,6 +81,8 @@ def collect_statistics(url, note, timings):
     }
 
 def main():
+    NUM_WORDS = 1000
+    NUM_REQUESTS = 1
     failed_urls = []
     all_statistics = []
     example_outputs = []
@@ -88,7 +90,7 @@ def main():
     # Loop through URLs and notes from the dictionary
     for url, note in URLS.items():
         print(f"Testing for URL: {url} ({note})")
-        timings, failed, example_output = test_url(url, note)
+        timings, failed, example_output = test_url(url, note, num_requests=NUM_REQUESTS, num_words=NUM_WORDS)
         if not failed:
             stats = collect_statistics(url, note, timings)
             all_statistics.append(stats)
