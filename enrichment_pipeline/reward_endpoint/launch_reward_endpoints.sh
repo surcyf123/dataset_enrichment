@@ -1,7 +1,7 @@
 #!/bin/bash
 
 START_PORT=30000
-NUM_INSTANCES=1 # Change to the number of GPUs you have / number of reward_instances you want to run.
+NUM_INSTANCES=4 # Change to the number of GPUs you have / number of reward_instances you want to run.
 declare -i EXTERNAL_PORT=45654 #change this if you want to get a list of the endpoint urls
 NAME=$START_PORT
 
@@ -19,7 +19,7 @@ do
     PORT=$((START_PORT + i))
 
     # Start the process with pm2
-    pm2 start --name "${PORT}" --time --interpreter=python3 /root/dataset_enrichment/enrichment_pipeline/reward_endpoint/reward_endpoint_threaded.py -- --port $PORT
+    pm2 start --name "${PORT}" --time --interpreter=python3 /root/dataset_enrichment/enrichment_pipeline/reward_endpoint/reward_endpoint.py -- --port $PORT --gpu $GPU_ID
 
     # Append the URL for this reward endpoint to the urls array
     url_list+="\"http://$EXTERNAL_IP:$EXTERNAL_PORT\","

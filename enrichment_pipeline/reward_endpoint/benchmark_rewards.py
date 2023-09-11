@@ -148,27 +148,26 @@ class RewardEndpoint:
 # Main execution flow
 endpoint = RewardEndpoint(gpu_ids=[0, 1, 2])
 
-file_path = "/root/dataset_enrichment/dataset/benchmarking_completions.json"
+file_path = "/root/dataset_enrichment/enrichment_pipeline/reward_endpoint/benchmark.json"
 with open(file_path, 'r') as f:
     data = json.load(f)
 
-def process_data_on_gpu(data, reward_function):
-    results = []
-    for idx, entry in enumerate(data, 0):
-        prompt = entry["prompt"].strip('\n')
-        completion = entry["completions"].strip('\n')
-        reward = reward_function.calculate_total_reward(prompt, completion, idx)
-        row_data = {'Prompt Number': idx}
-        row_data.update(reward)
-        results.append(row_data)
-    return results
+csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0911.csv"
+fieldnames = ['Prompt Number', 'RLHF', "Reciprocate", "DPO"]
 
-results = process_data_on_gpu(data, endpoint)
-
-csv_path = "/root/dataset_enrichment/enrichment_pipeline/results/benchmarks/benchmarks0909.csv"
+# Open the CSV file for writing
 with open(csv_path, 'w', newline='') as csvfile:
-    fieldnames = ['Prompt Number', 'RLHF', "Reciprocate", "DPO"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
-    for row_data in results:
-        writer.writerow(row_data)
+
+    # Process each prompt and its completions
+    for idx, (prompt, completions) in enumerate(data.items(), 0):
+        for completion in completions:
+            prompt = prompt.strip('\n')
+            completion = completion.strip('\n')
+            reward = endpoint.calculate_total_reward(prompt, completion, idx)
+            row_data = {'Prompt Number': idx}
+            row_data.update(reward)
+            
+            # Write the result to the CSV file immediately
+            writer.writerow(row_data)

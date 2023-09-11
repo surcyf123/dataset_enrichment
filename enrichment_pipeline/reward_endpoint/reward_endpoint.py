@@ -26,20 +26,9 @@ class BaseRewardModel:
     def name(self) -> str: ...
     
     def __init__(self) -> None:
-        self.count, self.mean, self.var = 0, 0.0, 0.0
-        self.count_limit = 3000
+        self.mean, self.var = 0.0, 0.0
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        new_count = rewards.numel()
-        if 0 < new_count and 0 < self.count + new_count:
-            new_mean = rewards.mean()
-            new_var = rewards.var(dim=0)
-            new_weight = new_count / (self.count + new_count)
-            old_weight = self.count / (self.count + new_count)
-            diff = new_mean - self.mean
-            self.mean = new_weight * new_mean + old_weight * self.mean
-            self.var = (new_weight * new_var) + (old_weight * self.var) + (new_weight * old_weight) * diff * diff
-            self.count = min(self.count_limit, self.count + new_count)
         rewards = rewards - self.mean
         if self.var > 0:
             rewards /= torch.sqrt(self.var)
@@ -52,6 +41,7 @@ class BaseRewardModel:
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
         
         return successful_rewards, successful_rewards_normalized
+
 
 class RelevanceRewardModel(BaseRewardModel):
     @property
@@ -166,6 +156,7 @@ class OpenAssistantRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
+        self.mean, self.var = 0.05, 2.3
         self.tokenizer = AutoTokenizer.from_pretrained(OpenAssistantRewardModel.reward_model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(OpenAssistantRewardModel.reward_model_name).to(self.device)
     def reward_single(self, prompt: str, completion: str) -> float:
@@ -187,6 +178,7 @@ class ReciprocateRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
+        self.mean, self.var = -.2, 14
         self.tokenizer = AutoTokenizer.from_pretrained(ReciprocateRewardModel.reward_model_path, revision=ReciprocateRewardModel.revision)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             ReciprocateRewardModel.reward_model_path,
@@ -213,6 +205,7 @@ class DirectPreferenceRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
+        self.mean, self.var = -11, 5
         self.penalty = 1.2
         self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModel.reward_model_name)
         self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModel.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
