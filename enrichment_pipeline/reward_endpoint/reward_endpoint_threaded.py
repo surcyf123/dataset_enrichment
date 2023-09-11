@@ -270,7 +270,7 @@ class RewardEndpoint:
         logging.info(f"Total time taken for all threads: {total_time} seconds")
         
         # Write total time to CSV
-        with open('/mnt/data/thread_times.csv', 'a', newline='') as csvfile:
+        with open('thread_times.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(["Total", total_time])
         
