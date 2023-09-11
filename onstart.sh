@@ -13,3 +13,4 @@ nvm install 14.21.3
 nvm alias default 14.21.3
 source ~/.bashrc
 npm install -g pm2
+/root/dataset_enrichment/enrichment_pipeline/reward_endpoint/launch_reward_endpoints.sh
