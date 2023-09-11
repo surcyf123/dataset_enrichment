@@ -5,13 +5,17 @@ local_port = sys.argv[2]
 experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
 gpu_name = sys.argv[5]
-
+# %%
 import requests
 import json
 import time
 from typing import Tuple, Dict
 import csv
-# %%
+import random
+random.seed(42)
+random.shuffle(prompts)
+sample_size = 250
+sampled_prompts = prompts[:sample_size]
 from tqdm import tqdm
 with open("../dataset/only_prompts.json", "r") as f:
     prompts = json.load(f)
@@ -72,7 +76,7 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
 
 print("Experiment Starting")
 # Loop through the prompts and hyperparameters
-for i, prompt in tqdm(enumerate(prompts)):
+for i, prompt in tqdm(enumerate(sampled_prompts)):
     for num_tokens in hyperparameter_searches["num_tokens"]:
         for temperature in hyperparameter_searches["temperature"]:
             for top_p in hyperparameter_searches["top_p"]:
@@ -163,4 +167,3 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
     
 print("Experiment Complete")                    
                     
-    
