@@ -39,7 +39,7 @@ models_to_test=['TheBloke/airoboros-l2-13b-gpt4-2.0-GPTQ',
 gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "dph_total"'
+search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
