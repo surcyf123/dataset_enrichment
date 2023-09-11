@@ -156,7 +156,7 @@ class OpenAssistantRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
-        self.mean, self.var = 0.05, 2.3
+        self.mean, self.var = 2.27, 2.51
         self.tokenizer = AutoTokenizer.from_pretrained(OpenAssistantRewardModel.reward_model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(OpenAssistantRewardModel.reward_model_name).to(self.device)
     def reward_single(self, prompt: str, completion: str) -> float:
@@ -178,7 +178,7 @@ class ReciprocateRewardModel(BaseRewardModel):
     def __init__(self, device: str):
         super().__init__()
         self.device = device
-        self.mean, self.var = -.2, 14
+        self.mean, self.var = 
         self.tokenizer = AutoTokenizer.from_pretrained(ReciprocateRewardModel.reward_model_path, revision=ReciprocateRewardModel.revision)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             ReciprocateRewardModel.reward_model_path,
