@@ -23,15 +23,19 @@ reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", 
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=['TheBloke/airoboros-l2-13b-gpt4-2.0-GPTQ',
- 'TheBloke/Baichuan2-13B-Chat-GPTQ',
- 'TheBloke/YuLan-Chat-2-13B-GPTQ',
- 'TheBloke/Kimiko-v2-13B-GPTQ',
- 'TheBloke/Mythalion-13B-GPTQ',
- 'TheBloke/Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ',
- 'TheBloke/LosslessMegaCoder-Llama2-13B-Mini-GPTQ',
- 'TheBloke/Llama2-13B-MegaCode2-OASST-GPTQ']
+models_to_test=['TheBloke/OpenAssistant-Llama2-13B-Orca-8K-3319-GPTQ',
+ 'TheBloke/CodeLlama-13B-oasst-sft-v10-GPTQ',
+ 'TheBloke/llama-2-13B-German-Assistant-v2-GPTQ',
+ 'TheBloke/CodeUp-Alpha-13B-HF-GPTQ',
+ 'TheBloke/Chronorctypus-Limarobormes-13b-GPTQ',
+ 'TheBloke/Chronolima-Airo-Grad-L2-13B-GPTQ',
+ 'TheBloke/Airolima-Chronos-Grad-L2-13B-GPTQ',
+ 'TheBloke/LoKuS-13B-GPTQ']
 
+
+models_no_rep_name = []
+for model_name in models_to_test:
+    models_no_rep_name.append(model_name.replace("TheBloke/",""))
 
 # First we launch the instance and install dependancies
 
@@ -229,7 +233,7 @@ print(f"Shells and Clients Initialized: {', '.join(str(a) for a in list(experime
 
 def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells):
     # Download Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
     # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
@@ -254,7 +258,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         'reward_endpoint' : reward_endpoints[experiment_id]
     }
     # Run Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path'].replace('TheBloke/', '')} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
@@ -284,19 +288,17 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
 
     # Get the experiment averages
     
-
     
 
     # Upload Results to Git
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
     time.sleep(0.1)
-    print("Pushing Results: " + models_to_test[experiment_id])
-    experiment_filename = models_to_test[experiment_id].replace("cerebras/","")
+    print(f"{experiment_id} Pushing Results: " + models_to_test[experiment_id])
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mkdir {experiment_filename}"+"\n")
+    experiment_shells[experiment_id].send(f"mkdir {chosen_experiment_model_name}"+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{experiment_filename}* /root/quantized_reward_results/{experiment_filename}/"+"\n")
+    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/{chosen_experiment_model_name}/"+"\n")
     time.sleep(1)
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
@@ -305,7 +307,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     experiment_shells[experiment_id].send(f"git add ."+"\n")
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
-    experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {experiment_filename}.'"+"\n")
+    experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {chosen_experiment_model_name}.'"+"\n")
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
     
@@ -323,7 +325,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
 # Get all the different threads going
 threads = []
 for i in range(number_of_gpus_in_instance):
-    chosen_experiment_model_name = models_to_test[i]
+    chosen_experiment_model_name = models_no_rep_name[i]
     chosen_experiment_model_port = base_port + i
     
     t = threading.Thread(target=download_model_run_experiment_upload_results, args=(chosen_experiment_model_name, chosen_experiment_model_port, i,model_clients,model_shells,experiment_clients,experiment_shells))
