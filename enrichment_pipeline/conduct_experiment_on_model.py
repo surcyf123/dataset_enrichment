@@ -69,7 +69,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
 
 # Write the header to the CSV file
 for num_tokens in hyperparameter_searches["num_tokens"]:
-    with open(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.csv', mode='a', newline='') as csv_file:
+    with open(f'results/{num_tokens}-{pruned_model_name.replace("cerebras/","")}.csv', mode='a', newline='') as csv_file:
         fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         csv_writer.writeheader()
@@ -83,7 +83,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
             for top_p in hyperparameter_searches["top_p"]:
                 for top_k in hyperparameter_searches["top_k"]:
                     for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                        with open(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.csv', mode='a', newline='') as csv_file:
+                        with open(f'results/{num_tokens}-{pruned_model_name.replace("cerebras/","")}.csv', mode='a', newline='') as csv_file:
                             retries = 0
                             while True:
                                 try:
@@ -125,8 +125,8 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
 # Writing the stats
 import pandas as pd
 for num_tokens in hyperparameter_searches["num_tokens"]:       
-    with open(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.txt', 'w') as f:
-        df = pd.read_csv(f'results/{num_tokens}-{model_name_or_path.replace("cerebras/","")}.csv')
+    with open(f'results/{num_tokens}-{pruned_model_name.replace("cerebras/","")}.txt', 'w') as f:
+        df = pd.read_csv(f'results/{num_tokens}-{pruned_model_name.replace("cerebras/","")}.csv')
         f.write(f'gpu_name {gpu_name}\n')
         
         mean_duration = df['duration'].mean()
