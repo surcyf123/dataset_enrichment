@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 VERIFY_TOKEN = "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n"
 
 URLS = {
-    # "http://172.218.204.83:2701": "vast1",
+    "http://172.218.204.83:2701": "vast1",
     "http://142.182.6.112:55469": "vast2",
     "http://184.67.78.114:42036": "vast3",
     "http://37.27.2.44:60113": "vast4",
@@ -85,8 +85,8 @@ def collect_statistics(url, note, timings):
 
 def main():
     MIN_WORDS = 50
-    MAX_WORDS = 1000
-    NUM_REQUESTS = 300
+    MAX_WORDS = 250
+    NUM_REQUESTS = 3
     failed_urls = []
     all_statistics = []
     example_outputs = []
