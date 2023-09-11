@@ -245,12 +245,16 @@ class RewardEndpoint:
                 results[reward_fn.name] = score
             end_time = time.time()  # End time for this thread
             elapsed_time = end_time - start_time
+            
+            prompt_len = len(prompt)
+            completion_len = len(completion)
+            
             logging.info(f"{reward_fn.name} took {elapsed_time} seconds to compute.")
             
             # Write to CSV
             with open('thread_times.csv', 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow([reward_fn.name, elapsed_time])
+                writer.writerow([reward_fn.name, elapsed_time, prompt_len, completion_len])
 
         threads = []
         results = {}  # shared dictionary to store results from threads
@@ -272,7 +276,7 @@ class RewardEndpoint:
         # Write total time to CSV
         with open('thread_times.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(["Total", total_time])
+            writer.writerow(["Total", total_time, len(prompt), len(completion)])
         
         model_scores.update(results)
         logging.info(f"Model scores: {model_scores}")

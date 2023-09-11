@@ -28,18 +28,20 @@ CONVERSATIONAL_WORDS = [
     "advise", "mention", "remark", "note",
 ]
 
-def pick_random_words(word_list, num_words):
+def pick_random_words(word_list, min_words, max_words):
     """Return a list of randomly picked words with replacement."""
+    num_words = random.randint(min_words, max_words)
     return [random.choice(word_list) for _ in range(num_words)]
 
+
 # Send requests and measure time
-def test_url(url, note, num_requests, num_words):
+def test_url(url, note, num_requests, min_words, max_words):
     timings = []
     failed = False
     example_output = None
 
     for i in range(num_requests):
-        random_combination = pick_random_words(CONVERSATIONAL_WORDS, num_words)
+        random_combination = pick_random_words(CONVERSATIONAL_WORDS, min_words, max_words)
         data = {
             "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",
             "prompt": PROMPT,
@@ -81,8 +83,9 @@ def collect_statistics(url, note, timings):
     }
 
 def main():
-    NUM_WORDS = 1000
-    NUM_REQUESTS = 1
+    MIN_WORDS = 50
+    MAX_WORDS = 1000
+    NUM_REQUESTS = 100
     failed_urls = []
     all_statistics = []
     example_outputs = []
@@ -90,7 +93,7 @@ def main():
     # Loop through URLs and notes from the dictionary
     for url, note in URLS.items():
         print(f"Testing for URL: {url} ({note})")
-        timings, failed, example_output = test_url(url, note, num_requests=NUM_REQUESTS, num_words=NUM_WORDS)
+        timings, failed, example_output = test_url(url, note, num_requests=NUM_REQUESTS, min_words=MIN_WORDS, max_words=MAX_WORDS)
         if not failed:
             stats = collect_statistics(url, note, timings)
             all_statistics.append(stats)
