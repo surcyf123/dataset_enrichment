@@ -247,7 +247,7 @@ class RewardEndpoint:
             elapsed_time = end_time - start_time
             
             prompt_len = len(prompt)
-            completion_len = len(completion)
+            completion_len = len(str(completion))
             
             logging.info(f"{reward_fn.name} took {elapsed_time} seconds to compute.")
             
