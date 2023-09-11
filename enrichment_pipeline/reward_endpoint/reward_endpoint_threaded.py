@@ -276,7 +276,7 @@ class RewardEndpoint:
         # Write total time to CSV
         with open('thread_times.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(["Total", total_time, len(prompt), len(completion)])
+            writer.writerow(["Total", total_time, len(prompt), len(str(completion))])
         
         model_scores.update(results)
         logging.info(f"Model scores: {model_scores}")
@@ -305,12 +305,12 @@ if __name__ == "__main__":
     args = parse_arguments()   
     rw = RewardEndpoint(gpu_ids=[0, 1, 2, 3])
 
-    # Testing on launch
-    prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
-    completions = [
-    "london", "Given the historical significance and global influence of various European countries, the capital of France is most certainly Paris", "Berlin"
-    ]
-    resulting_dict = rw.calculate_total_reward(prompt, completions)
-    print(resulting_dict)
+    # # Testing on launch
+    # prompt = "Given the historical significance and global influence of various European countries, it's essential to have basic knowledge of their capitals. Keeping that in mind, can you determine the capital of France? The capital of France is"
+    # completions = [
+    # "london", "Given the historical significance and global influence of various European countries, the capital of France is most certainly Paris", "Berlin"
+    # ]
+    # resulting_dict = rw.calculate_total_reward(prompt, completions)
+    # print(resulting_dict)
 
     app.run(host="0.0.0.0", port=args.port, threaded=False, debug=False)
