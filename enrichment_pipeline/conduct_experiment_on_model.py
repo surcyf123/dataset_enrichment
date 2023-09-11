@@ -6,6 +6,7 @@ experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
 gpu_name = sys.argv[5]
 # %%
+pruned_model_name = model_name_or_path.replace("TheBloke/","")
 import requests
 import json
 import time
