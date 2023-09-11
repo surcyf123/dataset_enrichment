@@ -31,7 +31,7 @@ class BaseRewardModel:
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         rewards = rewards - self.mean
         if self.var > 0:
-            rewards /= torch.sqrt(self.var)
+            rewards /= torch.sqrt(torch.tensor(self.var))
         rewards = 0.5 * (1 + torch.erf(rewards / torch.sqrt(torch.tensor([2.0])).to(rewards.device)))
         return rewards
 
