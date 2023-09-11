@@ -23,14 +23,14 @@ reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", 
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=['TheBloke/OpenAssistant-Llama2-13B-Orca-8K-3319-GPTQ',
- 'TheBloke/CodeLlama-13B-oasst-sft-v10-GPTQ',
- 'TheBloke/llama-2-13B-German-Assistant-v2-GPTQ',
- 'TheBloke/CodeUp-Alpha-13B-HF-GPTQ',
- 'TheBloke/Chronorctypus-Limarobormes-13b-GPTQ',
- 'TheBloke/Chronolima-Airo-Grad-L2-13B-GPTQ',
- 'TheBloke/Airolima-Chronos-Grad-L2-13B-GPTQ',
- 'TheBloke/LoKuS-13B-GPTQ']
+models_to_test=['TheBloke/MythoMix-L2-13B-GPTQ',
+ 'TheBloke/MythoMax-L2-13B-GPTQ',
+ 'TheBloke/MythoLogic-L2-13B-GPTQ',
+ 'TheBloke/CodeLlama-13B-Python-GPTQ',
+ 'TheBloke/CodeLlama-13B-Instruct-GPTQ',
+ 'TheBloke/CodeLlama-13B-GPTQ',
+ 'TheBloke/Llama-2-13B-chat-GPTQ',
+ 'TheBloke/Asclepius-13B-GPTQ']
 
 
 models_no_rep_name = []
@@ -40,7 +40,7 @@ for model_name in models_to_test:
 # First we launch the instance and install dependancies
 
 # Finds all available instances
-gpu_name = "RTX_4090"
+gpu_name = "RTX_3090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
 search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
@@ -172,7 +172,7 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat /root/dataset_enrichment/credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
