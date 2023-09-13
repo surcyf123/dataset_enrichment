@@ -1,6 +1,29 @@
 [ 
- 
- 
+ "TheBloke/Minotaur-13B-fixed-SuperHOT-8K-GPTQ",
+ "TheBloke/Robin-13B-v2-SuperHOT-8K-GPTQ",
+ "TheBloke/Samantha-13B-SuperHOT-8K-GPTQ",
+ "TheBloke/Tulu-13B-SuperHOT-8K-GPTQ",
+ "TheBloke/Wizard-Vicuna-13B-Uncensored-SuperHOT-8K-GPTQ",
+ "TheBloke/airoboros-13b-gpt4-1.4-SuperHOT-8K-GPTQ",
+ "TheBloke/CAMEL-13B-Role-Playing-Data-SuperHOT-8K-GPTQ",
+ "TheBloke/Chronos-Hermes-13B-SuperHOT-8K-GPTQ"
+ "TheBloke/CAMEL-13B-Combined-Data-SuperHOT-8K-GPTQ"
+ "TheBloke/GPT4All-13B-Snoozy-SuperHOT-8K-GPTQ"
+ "TheBloke/Chronos-13B-SuperHOT-8K-GPTQ"
+ "TheBloke/Pygmalion-13B-SuperHOT-8K-GPTQ"
+ "TheBloke/wizard-vicuna-13B-SuperHOT-8K-GPTQ"
+ "TheBloke/Manticore-13B-Chat-Pyg-Guanaco-SuperHOT-8K-GPTQ"
+ "TheBloke/Baize-v2-13B-SuperHOT-8K-GPTQ"
+ "TheBloke/Koala-13B-SuperHOT-8K-GPTQ"
+ "TheBloke/Selfee-13B-SuperHOT-8K-GPTQ",
+ "TheBloke/WizardLM-13B-V1-1-SuperHOT-8K-GPTQ",
+ "TheBloke/Vigogne-Instruct-13B-GPTQ",
+ "TheBloke/koala-13B-GPTQ",
+ "TheBloke/gpt4-alpaca-lora-13B-GPTQ",
+ "TheBloke/medalpaca-13B-GPTQ",
+ "TheBloke/stable-vicuna-13B-GPTQ",
+ "TheBloke/wizard-vicuna-13B-GPTQ"
+
  
  
  'TheBloke/Wizard-Vicuna-13B-Uncensored-GPTQ',
