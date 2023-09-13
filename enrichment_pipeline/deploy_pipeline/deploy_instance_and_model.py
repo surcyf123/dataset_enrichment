@@ -1,6 +1,6 @@
 # %%
 import subprocess
-from utils import get_tmux_content
+from utils import get_tmux_content, refresh_tmux_pane
 import pandas as pd
 import shlex
 import re
@@ -23,16 +23,16 @@ reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", 
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=['TheBloke/MythoMix-L2-13B-GPTQ',
- 'TheBloke/MythoMax-L2-13B-GPTQ',
- 'TheBloke/MythoLogic-L2-13B-GPTQ',
- 'TheBloke/CodeLlama-13B-Python-GPTQ',
- 'TheBloke/CodeLlama-13B-Instruct-GPTQ',
- 'TheBloke/CodeLlama-13B-GPTQ',
- 'TheBloke/Llama-2-13B-chat-GPTQ',
- 'TheBloke/Asclepius-13B-GPTQ']
+models_to_test=['TheBloke/GPT4All-13B-snoozy-GPTQ',
+ 'TheBloke/gpt4-x-vicuna-13B-GPTQ',
+ 'TheBloke/Vicuna-13B-1-3-SuperHOT-8K-GPTQ',
+ 'TheBloke/WizardLM-13B-V1-0-Uncensored-SuperHOT-8K-GPTQ',
+ 'TheBloke/guanaco-13B-SuperHOT-8K-GPTQ',
+ 'TheBloke/Nous-Hermes-13B-SuperHOT-8K-GPTQ',
+ 'TheBloke/Manticore-13B-Chat-Pyg-SuperHOT-8K-GPTQ',
+ 'TheBloke/Manticore-13B-SuperHOT-8K-GPTQ',]
 
-
+print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
 for model_name in models_to_test:
     models_no_rep_name.append(model_name.replace("TheBloke/",""))
@@ -40,7 +40,7 @@ for model_name in models_to_test:
 # First we launch the instance and install dependancies
 
 # Finds all available instances
-gpu_name = "RTX_3090"
+gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
 search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
@@ -179,6 +179,7 @@ while not dep_shell.recv_ready():
     time.sleep(1)
 print("Installing Dependancies")
 while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
+    refresh_tmux_pane(install_dep_client)
     time.sleep(1)
 print("Dependancies Ready!")
 
@@ -242,6 +243,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id}: Downloading Model(s)")
     
     while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(model_clients[experiment_id]):
+        refresh_tmux_pane(model_clients[experiment_id])
         time.sleep(1)
     print(f"Model {experiment_id} Ready!")
     # I need to launch this in its own screen
@@ -265,6 +267,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         time.sleep(1)
     print(f"{experiment_id}:Launching Model: {model_uuid}")
     while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
+        refresh_tmux_pane(model_clients[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
@@ -283,6 +286,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")
     while "Experiment Complete" not in get_tmux_content(experiment_clients[experiment_id]):
+        refresh_tmux_pane(experiment_clients[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Done: {launch_args['local_port']}!")
 
@@ -296,9 +300,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id} Pushing Results: " + models_to_test[experiment_id])
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mkdir {chosen_experiment_model_name}"+"\n")
-    time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/{chosen_experiment_model_name}/"+"\n")
+    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/"+"\n")
     time.sleep(1)
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
