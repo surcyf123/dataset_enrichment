@@ -1,7 +1,7 @@
 import sys
 
-model = sys.argv[1]
-port = int(sys.argv[2])
+model_name_or_path = sys.argv[1]
+local_port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
 
@@ -38,11 +38,11 @@ model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
                                             local_files_only=True,
                                            torch_dtype=torch.float16,
                                            trust_remote_code=True,
-                                           device_map=f"cuda:{gpuid}")
+                                           device_map=f"cuda:{gpu_id}")
 
 def generate_output(text: str, num_responses: int, max_new_tokens, temperature, top_p, top_k, repetition_penalty, stop_tokens):
     # Convert the text to input_ids
-    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(f"cuda:{gpuid}")
+    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(f"cuda:{gpu_id}")
     
     # Use num_return_sequences to generate multiple completions in parallel
     tokens = model.generate(
