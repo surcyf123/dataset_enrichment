@@ -23,14 +23,7 @@ reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", 
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=['TheBloke/GPT4All-13B-snoozy-GPTQ',
- 'TheBloke/gpt4-x-vicuna-13B-GPTQ',
- 'TheBloke/Vicuna-13B-1-3-SuperHOT-8K-GPTQ',
- 'TheBloke/WizardLM-13B-V1-0-Uncensored-SuperHOT-8K-GPTQ',
- 'TheBloke/guanaco-13B-SuperHOT-8K-GPTQ',
- 'TheBloke/Nous-Hermes-13B-SuperHOT-8K-GPTQ',
- 'TheBloke/Manticore-13B-Chat-Pyg-SuperHOT-8K-GPTQ',
- 'TheBloke/Manticore-13B-SuperHOT-8K-GPTQ',]
+models_to_test=["TheBloke/CAMEL-13B-Combined-Data-SuperHOT-8K-GPTQ", "TheBloke/GPT4All-13B-Snoozy-SuperHOT-8K-GPTQ", "TheBloke/Chronos-13B-SuperHOT-8K-GPTQ", "TheBloke/Pygmalion-13B-SuperHOT-8K-GPTQ", "TheBloke/wizard-vicuna-13B-SuperHOT-8K-GPTQ", "TheBloke/Manticore-13B-Chat-Pyg-Guanaco-SuperHOT-8K-GPTQ", "TheBloke/Baize-v2-13B-SuperHOT-8K-GPTQ", "TheBloke/Koala-13B-SuperHOT-8K-GPTQ"]
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
@@ -133,6 +126,7 @@ base_client.connect(
     look_for_keys=False)
 base_shell = base_client.invoke_shell()
 base_shell.send('touch ~/.no_auto_tmux'+"\n")
+time.sleep(1)
 while not base_shell.recv_ready():
     time.sleep(1)
 base_client.close()
