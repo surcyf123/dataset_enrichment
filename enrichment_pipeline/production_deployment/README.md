@@ -27,20 +27,21 @@ python3 setup.py install --user
 ### Getting the models
 ```bash
 git lfs clone https://huggingface.co/TheBloke/Stheno-Inverted-L2-13B-GPTQ
+git lfs clone https://huggingface.co/TheBloke/Airoboros-L2-13B-2.2-GPTQ
 ```
 
 
-### Hosting It
+### Hosting It (ExLlamaV2)
 Use host_gptq_exllama for the best speeds
-```python
-model_directory = sys.argv[1]
-local_port = int(sys.argv[2])
-gpu_id = int(sys.argv[3])
-gpu_type = sys.argv[4]
+```bash
+# python3 host_gptq_exllama.py model_directory local_port gpu_id gpu_type
+python3 host_gptq_exllama.py /root/Stheno-Inverted-L2-13B-GPTQ 8081 0 4090
+python3 host_gptq_exllama.py /root/Airoboros-L2-13B-2.2-GPTQ 8082 1 4090
 
 ```
 
 
+### Hosting It (Transformers + AutoGPTQ) [LEGACY]
 
 ```bash
 python3 main.py
