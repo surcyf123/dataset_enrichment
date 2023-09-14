@@ -81,9 +81,9 @@ def generate_text():
         data['prompt'],
         num_responses,
         num_tokens,
-        0.9,
+        0.95,
         1.0,
-        60,
+        90,
         1.0,
         []
     )
