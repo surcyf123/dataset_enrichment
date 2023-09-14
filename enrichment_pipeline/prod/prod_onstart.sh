@@ -46,20 +46,27 @@ if [[ "$gpu_type" != "3090" && "$gpu_type" != "4090" ]]; then
     exit 1
 fi
 
-# Define model arrays
-declare -A model_arrays
-# Arrays are arranged by getting top 14 results from prod_results.csv in quantized_results and then repeating the top 10 twice
-model_arrays["models8x1"]=("Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ" "Luban-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ")
-model_arrays["models8x2"]=("Huginn-v3-13B-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-v3-13B-GPTQ" "Huginn-v3-13B-GPTQ" "LoKuS-13B-GPTQ" "PuddleJumper-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ")
-model_arrays["models8x3"]=("Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Huginn-v3-13B-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-v3-13B-GPTQ")
+# Define model arrays using indexed arrays
+models8x1=("Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ" "Luban-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ")
+models8x2=("Huginn-v3-13B-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-v3-13B-GPTQ" "Huginn-v3-13B-GPTQ" "LoKuS-13B-GPTQ" "PuddleJumper-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ")
+models8x3=("Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Huginn-v3-13B-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-v3-13B-GPTQ")
 
-# Check if the chosen model array exists
-if [[ -z "${model_arrays["$model_choice"]}" ]]; then
-    echo "Invalid model_choices. Choose one of 'models4x1', 'models4x2', 'models8x1', or 'models8x2'."
-    exit 1
-fi
-
-models=("${model_arrays["$model_choice"][@]}")
+# Use a case statement to assign models based on model_choice
+case "$model_choice" in
+    "models8x1")
+        models=("${models8x1[@]}")
+        ;;
+    "models8x2")
+        models=("${models8x2[@]}")
+        ;;
+    "models8x3")
+        models=("${models8x3[@]}")
+        ;;
+    *)
+        echo "Invalid model_choices. Choose one of 'models8x1', 'models8x2', or 'models8x3'."
+        exit 1
+        ;;
+esac
 
 # Change to the home directory
 cd ~/
