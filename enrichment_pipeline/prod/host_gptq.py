@@ -74,7 +74,7 @@ def generate_text():
     else:
         raise ValueError(f"Invalid gpu_type: {gpu_type}")
     data = request.json
-    num_responses = 3  # Number of varied responses for each prompt
+    num_responses = 4  # Number of varied responses for each prompt
     
     # Generate multiple outputs for the prompt
     responses = generate_output(
