@@ -68,9 +68,9 @@ import re
 @app.route('/generate', methods=['POST'])
 def generate_text():
     if gpu_type == "3090":
-        num_tokens = 115
+        num_tokens = 200
     elif gpu_type == "4090":
-        num_tokens = 150
+        num_tokens = 250
     else:
         raise ValueError(f"Invalid gpu_type: {gpu_type}")
     data = request.json
