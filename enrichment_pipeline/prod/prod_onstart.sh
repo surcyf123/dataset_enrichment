@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# Usage
+# git clone https://github.com/surcyf123/dataset_enrichment && git checkout pierre/download_and_host_gptq && bash dataset_enrichment/enrichment_pipeline/prod/prod_onstart.sh && source ~/.bashrc
 # Stop the script if any command fails
 set -e
 
@@ -26,7 +27,6 @@ nvm install 14.21.3
 nvm alias default 14.21.3
 npm install -g pm2
 curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-sudo apt-get install git-lfs
 
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <gpu_type> <model_choices>"
