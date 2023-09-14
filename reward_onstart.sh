@@ -1,6 +1,24 @@
 #!/bin/bash
 # Run source ~/.bashrc after this
 # git clone https://github.com/surcyf123/dataset_enrichment && bash dataset_enrichment/reward_onstart.sh && source ~/.bashrc
+
+# 1. Download and install Miniconda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+bash miniconda.sh -b -p $HOME/miniconda
+
+# 2. Create a Conda environment
+$HOME/miniconda/bin/conda create -y -n bit2 python=3.10
+
+# 3. Activate the Conda environment
+source $HOME/miniconda/bin/activate bit2
+
+cd dataset_enrichment
+git pull
+git checkout pierre/reward_endpoint_v1
+
+# 4. Install the necessary packages within this environment
+pip install --upgrade pip
+pip install flask nvitop torchmetrics transformers
 cd dataset_enrichment
 git pull
 git checkout pierre/reward_endpoint_v1
