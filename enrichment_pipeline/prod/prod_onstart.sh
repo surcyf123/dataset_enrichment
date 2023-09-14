@@ -46,10 +46,10 @@ fi
 
 # Define model arrays
 declare -A model_arrays
-model_arrays["models4x1"]=("Luban-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ" "Speechless-Llama2-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ")
-model_arrays["models4x2"]=("StableBeluga-13B-GPTQ" "CodeUp-Llama-2-13B-Chat-HF-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ")
-model_arrays["models8x1"]=("UndiMix-v2-13B-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "orca_mini_v3_13B-GPTQ" "PuddleJumper-13B-GPTQ" "Chronoboros-Grad-L2-13B-GPTQ" "Firefly-Llama2-13B-v1.2-GPTQ" "Airolima-Chronos-Grad-L2-13B-GPTQ" "YuLan-Chat-2-13B-GPTQ")
-model_arrays["models8x2"]=("LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ" "LoKuS-13B-GPTQ" "Luban-13B-GPTQ" "Huginn-13B-v4-GPTQ" "Huginn-13B-v4.5-GPTQ" "Huginn-v3-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ")
+# Arrays are arranged by getting top 14 results from prod_results.csv in quantized_results and then repeating the top 10 twice
+model_arrays["models8x1"]=("Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ" "Luban-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ")
+model_arrays["models8x2"]=("Huginn-v3-13B-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-v3-13B-GPTQ" "Huginn-v3-13B-GPTQ" "LoKuS-13B-GPTQ" "PuddleJumper-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ")
+model_arrays["models8x3"]=("Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Huginn-v3-13B-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-v3-13B-GPTQ")
 
 # Check if the chosen model array exists
 if [[ -z "${model_arrays["$model_choice"]}" ]]; then
