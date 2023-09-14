@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage
-# git clone https://github.com/surcyf123/dataset_enrichment && cd dataset_enrichment && git checkout pierre/download_and_host_gptq && cd .. && bash dataset_enrichment/enrichment_pipeline/prod/prod_onstart.sh && source ~/.bashrc
+# git clone https://github.com/surcyf123/dataset_enrichment && cd dataset_enrichment && git checkout pierre/download_and_host_gptq && cd .. && bash dataset_enrichment/enrichment_pipeline/prod/prod_onstart.sh 3090 models8x1 && source ~/.bashrc
 # Stop the script if any command fails
 set -e
 
@@ -9,8 +9,10 @@ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O mi
 bash miniconda.sh -b -p $HOME/miniconda
 rm miniconda.sh
 source $HOME/miniconda/etc/profile.d/conda.sh
-conda create -y -n myenv python=3.10
-conda activate myenv
+conda create -y -n bit2 python=3.10
+conda init
+source ~/.bashrc
+conda activate bit2
 pip install --upgrade Pillow
 pip install flask nvitop tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum
 curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
