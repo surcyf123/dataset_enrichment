@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage
-git clone https://github.com/surcyf123/dataset_enrichment && cd dataset_enrichment && git checkout pierre/download_and_host_gptq && cd .. && bash ~/dataset_enrichment/enrichment_pipeline/prod/prod_onstart.sh && bash ~/dataset_enrichment/enrichment_pipeline/prod/download_and_start_models.sh 3090 models8x3 && source ~/.bashrc
+# git clone https://github.com/surcyf123/dataset_enrichment && cd dataset_enrichment && git checkout pierre/download_and_host_gptq && cd .. && bash ~/dataset_enrichment/enrichment_pipeline/prod/prod_onstart.sh && bash ~/dataset_enrichment/enrichment_pipeline/prod/download_and_start_models.sh 3090 models8x3 && source ~/.bashrc
 # Stop the script if any command fails
 set -e
 
