@@ -3,7 +3,7 @@
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <gpu_type> <model_choices>"
     echo "gpu_type should be either '3090' or '4090'."
-    echo "model_choices should be one of 'models4x1', 'models4x2', 'models8x1', or 'models8x2'."
+    echo "model_choices should be one of 'models8x1', 'models8x2', 'models8x3'."
     exit 1
 fi
 
@@ -78,7 +78,7 @@ for i in "${!models[@]}"; do
     urls+=("http://$ip:$port")
 
     echo "Starting model $model on port $port with GPU ID $gpu_id..."
-    pm2 start host_gptq.py --name "${models[$i]}" --interpreter python3 -- "$model" "$port" "$gpu_id"
+    pm2 start ~/dataset_enrichment/enrichment_pipeline/prod/host_gptq.py.py --name "${models[$i]}" --interpreter python3 -- "$model" "$port" "$gpu_id"
 done
 
 # Print the list of URLs as a Python list
