@@ -8,17 +8,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Flask, request, jsonify
-from exllamav2 import(
-    ExLlamaV2,
-    ExLlamaV2Config,
-    ExLlamaV2Cache,
-    ExLlamaV2Tokenizer,
-)
-
-from exllamav2.generator import (
-    ExLlamaV2BaseGenerator,
-    ExLlamaV2Sampler
-)
+from exllamav2 import(ExLlamaV2,ExLlamaV2Config,ExLlamaV2Cache,ExLlamaV2Tokenizer,)
+from exllamav2.generator import (ExLlamaV2BaseGenerator,ExLlamaV2Sampler)
 
 config = ExLlamaV2Config()
 config.model_dir = model_directory
@@ -29,10 +20,7 @@ print("Loading model: " + model_directory)
 model.load([18, 24])
 
 tokenizer = ExLlamaV2Tokenizer(config)
-
 cache = ExLlamaV2Cache(model)
-
-# Initialize generator
 
 generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
 model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
@@ -52,7 +40,6 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     
     generator.warmup()
     time_begin = time.time()
-
     output = generator.generate_simple(text, settings, max_new_tokens, seed = 1234)
 
     time_end = time.time()
@@ -61,7 +48,6 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     print(f"Response generated in {time_total:.2f} seconds, {max_new_tokens} tokens, {max_new_tokens / time_total:.2f} tokens/second")
     t_per_s = (max_new_tokens / time_total)
     
-    # Decode each item in the batch
     return output,t_per_s
 
 app = Flask(__name__)
