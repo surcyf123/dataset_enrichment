@@ -6,7 +6,7 @@ gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append("/root/")
 print(sys.path)
 from flask import Flask, request, jsonify
 from exllamav2 import(ExLlamaV2,ExLlamaV2Config,ExLlamaV2Cache,ExLlamaV2Tokenizer,)
