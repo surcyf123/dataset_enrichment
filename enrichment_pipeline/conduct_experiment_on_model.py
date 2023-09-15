@@ -53,7 +53,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     # Data to send
     data = {
         "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
-        "prompt": original_prompt,
+        "prompt": original_prompt.rstrip(),
         "completions": [response]
     }
 
