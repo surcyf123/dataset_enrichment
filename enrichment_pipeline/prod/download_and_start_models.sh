@@ -78,7 +78,7 @@ for i in "${!models[@]}"; do
     urls+=("http://$ip:$port")
 
     echo "Starting model $model on port $port with GPU ID $gpu_id..."
-    pm2 start ~/dataset_enrichment/enrichment_pipeline/prod/host_gptq.py --name "${models[$i]}" --interpreter python3 -- "$model" "$port" "$gpu_id"
+    pm2 start ~/dataset_enrichment/enrichment_pipeline/prod/host_gptq.py --name "${models[$i]}" --interpreter python3 -- "$model" "$port" "$gpu_id" "$gpu_type"
 done
 
 # Print the list of URLs as a Python list
