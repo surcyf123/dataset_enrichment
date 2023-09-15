@@ -70,7 +70,7 @@ declare -a urls
 
 # Start PM2 processes
 for i in "${!models[@]}"; do
-    model="~/${models[$i]}"  # The model path is relative to the parent directory
+    model="/root/${models[$i]}"  # The model path is relative to the parent directory
     port=${ports[$i]}
     gpu_id=$i  # This assumes you start with GPU ID 0 and increase by 1 for each model
 

@@ -1,11 +1,12 @@
 import sys
 import os
-model = sys.argv[1]
+model_directory = sys.argv[1]
 port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-
+print(model_directory)
+model_directory.replace("~","/root")
 sys.path.append("/root/")
 print(f"sys.path: ", sys.path)
 from flask import Flask, request, jsonify
@@ -24,11 +25,6 @@ tokenizer = ExLlamaV2Tokenizer(config)
 cache = ExLlamaV2Cache(model)
 
 generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
-model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
-                                            local_files_only=True,
-                                           torch_dtype=torch.float16,
-                                           trust_remote_code=True,
-                                           device_map=f"cuda:{gpuid}")
 
 def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repetition_penalty,stopwords):
 
@@ -79,4 +75,4 @@ def generate_text():
     return jsonify({'response': responses, "model": model_directory, "tokens_per_second" : t_per_s})
 
 if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0", port=local_port)
+    app.run(debug=False, host="0.0.0.0", port=port)
