@@ -6,7 +6,7 @@ gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append('~/exllamav2')
 from flask import Flask, request, jsonify
 from exllamav2 import(ExLlamaV2,ExLlamaV2Config,ExLlamaV2Cache,ExLlamaV2Tokenizer,)
 from exllamav2.generator import (ExLlamaV2BaseGenerator,ExLlamaV2Sampler)
@@ -73,7 +73,6 @@ def generate_text():
         80,
         1.0,
         [])
-    
     
     
     return jsonify({'response': responses, "model": model_directory, "tokens_per_second" : t_per_s})
