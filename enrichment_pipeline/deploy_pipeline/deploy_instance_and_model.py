@@ -13,7 +13,7 @@ import threading
 from typing import Dict
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-active_branch = "ethan/use-the-bloke-scraping"
+active_branch = "ethan/0.3-pushing-results"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
@@ -289,28 +289,33 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     
 
     # Upload Results to Git
-    experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
-    time.sleep(0.1)
+    
+    
+    experiment_shells[experiment_id].send('chmod 600 ~/.ssh/autovastai && eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
+    time.sleep(0.3)
+    
     print(f"{experiment_id} Pushing Results: " + models_to_test[experiment_id])
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
-    time.sleep(0.1)
+    time.sleep(0.3)
+    
     experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/"+"\n")
-    time.sleep(1)
-    while not experiment_shells[experiment_id].recv_ready():
-        time.sleep(1)
+    time.sleep(5)
+
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
-    time.sleep(0.1)
+    time.sleep(0.3)
+    
+    experiment_shells[experiment_id].send(f"git config --global user.email 'deckenball@gmail.com' && git config --global user.name 'AutoVastAI'"+"\n")
+    time.sleep(2)
+    
     experiment_shells[experiment_id].send(f"git add ."+"\n")
-    while not experiment_shells[experiment_id].recv_ready():
-        time.sleep(1)
+    time.sleep(5)
+
     experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {chosen_experiment_model_name}.'"+"\n")
-    while not experiment_shells[experiment_id].recv_ready():
-        time.sleep(1)
+    time.sleep(5)
     
     experiment_shells[experiment_id].send(f"git push origin main"+"\n")
-    while not experiment_shells[experiment_id].recv_ready():
-        time.sleep(1)
-    
+    time.sleep(10)
+    print("Results Pushed")
     
     
 
