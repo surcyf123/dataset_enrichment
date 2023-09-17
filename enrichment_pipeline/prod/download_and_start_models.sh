@@ -17,9 +17,10 @@ if [[ "$gpu_type" != "3090" && "$gpu_type" != "4090" ]]; then
 fi
 
 # Define model arrays using indexed arrays
-models8x1=("Speechless-Llama2-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ" "Luban-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ")
-models8x2=("Huginn-13B-v4-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-13B-v4.5-GPTQ" "Huginn-v3-13B-GPTQ" "LoKuS-13B-GPTQ" "PuddleJumper-13B-GPTQ" "Speechless-Llama2-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ")
-models8x3=("Stheno-Inverted-L2-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Speechless-Llama2-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Huginn-13B-v4-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-13B-v4.5-GPTQ")
+models8x1=("Huginn-13B-v4-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-13B-v4.5-GPTQ" "Huginn-v3-13B-GPTQ" "Stheno-Inverted-L2-13B-GPTQ" "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Speechless-Llama2-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ") #working models
+models8x2=("Mythical-Destroyer-L2-13B-GPTQ" "MythoBoros-13B-GPTQ" "StableBeluga-13B-GPTQ" "CodeUp-Llama-2-13B-Chat-HF-GPTQ" "Baize-v2-13B-SuperHOT-8K-GPTQ" "orca_mini_v3_13B-GPTQ" "Chronoboros-Grad-L2-13B-GPTQ" "Project-Baize-v2-13B-GPTQ") #working models2
+models8x3=("PuddleJumper-13B-GPTQ" "Luban-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "Luban-13B-GPTQ" "OpenOrca-Platypus2-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Chronos-Hermes-13B-SuperHOT-8K-GPTQ" "OpenOrcaxOpenChat-Preview2-13B-GPTQ") #models with vocab>30000
+
 
 # Use a case statement to assign models based on model_choice
 case "$model_choice" in
