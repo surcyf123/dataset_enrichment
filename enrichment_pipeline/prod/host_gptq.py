@@ -41,11 +41,12 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
 
     outputs = []
     time_begin = time.time()
+    generator.warmup()
 
     for _ in range(num_completions):
-        generator.warmup()
-        output = generator.generate_simple(text, settings, max_new_tokens, seed=None)  # Removed seed for variability
-        outputs.append(output)
+        full_text = generator.generate_simple(text, settings, max_new_tokens, seed=None)
+        completion_only = full_text[len(text):]  # Extract only the completion by removing the prompt
+        outputs.append(completion_only)
 
     time_end = time.time()
     time_total = time_end - time_begin
@@ -53,10 +54,7 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
 
     return outputs, t_per_s
 
-
 app = Flask(__name__)
-
-
 @app.route('/generate', methods=['POST'])
 def generate_text():
     if gpu_type == "3090":
