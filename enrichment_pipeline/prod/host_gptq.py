@@ -38,7 +38,8 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     settings.top_p = top_p
     settings.token_repetition_penalty = repetition_penalty
     settings.disallow_tokens(tokenizer, [tokenizer.eos_token_id])
-
+    settings.token_bias = None
+    
     outputs = []
     time_begin = time.time()
     generator.warmup()
