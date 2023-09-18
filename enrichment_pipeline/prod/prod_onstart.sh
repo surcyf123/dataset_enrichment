@@ -15,10 +15,12 @@ source ~/.bashrc
 conda activate bit2
 pip3 install --upgrade pip
 pip3 install --upgrade Pillow
-pip3 install flask nvitop tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum exllamav2
+pip3 install flask nvitop tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum
 curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
 sudo apt-get install git-lfs
 git lfs install
+
+git clone https://github.com/turboderp/exllamav2 && cd exllamav2 && pip install -r requirements.txt && python3 setup.py install --user && cd ..
 
 sed -i "/^PATH='\/opt\/conda\/bin:\/usr\/local\/nvidia\/bin:\/usr\/local\/cuda\/bin:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin'$/s/^/#/" ~/.bashrc
 
