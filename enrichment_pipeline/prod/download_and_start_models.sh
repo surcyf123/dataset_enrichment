@@ -3,7 +3,7 @@
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <gpu_type> <model_choices>"
     echo "gpu_type should be either '3090' or '4090'."
-    echo "model_choices should be one of 'models8x1', 'models8x2', 'models8x3'."
+    echo "model_choices should be one of 'models8x1', 'models8x2', 'models8x3', models4x1p1', 'models4x1p2', 'models4x2p1', 'models4x2p2', 'models4x3p1', or 'models4x3p2'."
     exit 1
 fi
 
@@ -38,8 +38,26 @@ case "$model_choice" in
     "models8x3")
         models=("${models8x3[@]}")
         ;;
+    "models4x1p1")
+        models=("${models4x1p1[@]}")
+        ;;
+    "models4x1p2")
+        models=("${models4x1p2[@]}")
+        ;;
+    "models4x2p1")
+        models=("${models4x2p1[@]}")
+        ;;
+    "models4x2p2")
+        models=("${models4x2p2[@]}")
+        ;;
+    "models4x3p1")
+        models=("${models4x3p1[@]}")
+        ;;
+    "models4x3p2")
+        models=("${models4x3p2[@]}")
+        ;;
     *)
-        echo "Invalid model_choices. Choose one of 'models8x1', 'models8x2', or 'models8x3'."
+        echo "Invalid model_choices. Please select a valid choice."
         exit 1
         ;;
 esac
