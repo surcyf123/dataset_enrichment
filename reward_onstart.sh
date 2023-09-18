@@ -13,8 +13,8 @@ conda init
 source ~/.bashrc
 
 # 4. Install the necessary packages within this environment
-pip install --upgrade pip
-pip install flask nvitop torchmetrics transformers
+pip3 install --upgrade pip
+pip3 install flask nvitop torchmetrics transformers
 sed -i "/^PATH='\/opt\/conda\/bin:\/usr\/local\/nvidia\/bin:\/usr\/local\/cuda\/bin:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin'$/s/^/#/" ~/.bashrc
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
@@ -23,6 +23,7 @@ export NVM_DIR="$HOME/.nvm"
 nvm install 14.21.3
 nvm alias default 14.21.3
 source ~/.bashrc
+pip3 install flask
 npm install -g pm2
 chmod +x /root/dataset_enrichment/enrichment_pipeline/reward_endpoint/launch_reward_endpoints.sh
 /root/dataset_enrichment/enrichment_pipeline/reward_endpoint/launch_reward_endpoints.sh
