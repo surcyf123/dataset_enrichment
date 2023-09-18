@@ -24,7 +24,7 @@ models4x1p1=("Huginn-13B-v4-GPTQ" "UndiMix-v2-13B-GPTQ" "Huginn-13B-v4.5-GPTQ" "
 models4x1p2=("Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-GPTQ" "Speechless-Llama2-13B-GPTQ" "Mythical-Destroyer-V2-L2-13B-GPTQ")
 models4x2p1=("Mythical-Destroyer-L2-13B-GPTQ" "MythoBoros-13B-GPTQ" "StableBeluga-13B-GPTQ" "CodeUp-Llama-2-13B-Chat-HF-GPTQ")
 models4x2p2=("Baize-v2-13B-SuperHOT-8K-GPTQ" "orca_mini_v3_13B-GPTQ" "Chronoboros-Grad-L2-13B-GPTQ" "Project-Baize-v2-13B-GPTQ")
-models4x3p1=("PuddleJumper-13B-GPTQ" "Luban-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "Luban-13B-GPTQ")
+models4x3p1=("PuddleJumper-13B-GPTQ" "Luban-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "")
 models4x3p2=("OpenOrca-Platypus2-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Chronos-Hermes-13B-SuperHOT-8K-GPTQ" "OpenOrcaxOpenChat-Preview2-13B-GPTQ")
 
 # Use a case statement to assign models based on model_choice
