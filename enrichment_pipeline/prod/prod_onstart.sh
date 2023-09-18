@@ -15,7 +15,7 @@ source ~/.bashrc
 conda activate bit2
 pip3 install --upgrade pip
 pip3 install --upgrade Pillow
-pip3 install flask nvitop tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum exllamav2
+pip3 install flask nvitop tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum
 curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
 sudo apt-get install git-lfs
 git lfs install
