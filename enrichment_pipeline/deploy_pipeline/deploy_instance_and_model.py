@@ -17,13 +17,29 @@ active_branch = "ethan/0.3-pushing-results"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
-reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", "http://142.182.6.112:55430", "http://142.182.6.112:55430", #"vast2",
-    "http://184.67.78.114:42036", "http://184.67.78.114:42091", "http://184.67.78.114:42082", "http://184.67.78.114:42093", # "vast3",
-    "http://37.27.2.44:60113", "http://37.27.2.44:60180", "http://37.27.2.44:60151", "http://37.27.2.44:60181"] # vast 4
+reward_endpoints = [
+    "http://70.52.53.190:50305",
+    "http://70.52.53.190:50336",
+    "http://70.52.53.190:50365",
+    "http://70.52.53.190:50334",
+    "http://47.189.79.46:50159",
+    "http://47.189.79.46:50108",
+    "http://47.189.79.46:50193",
+    "http://47.189.79.46:50060",
+    "http://93.206.137.205:48183",
+    "http://93.206.137.205:48076",
+    "http://93.206.137.205:48182",
+    "http://93.206.137.205:48038"
+] # vast 4
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=["TheBloke/CAMEL-13B-Combined-Data-SuperHOT-8K-GPTQ", "TheBloke/GPT4All-13B-Snoozy-SuperHOT-8K-GPTQ", "TheBloke/Chronos-13B-SuperHOT-8K-GPTQ", "TheBloke/Pygmalion-13B-SuperHOT-8K-GPTQ", "TheBloke/wizard-vicuna-13B-SuperHOT-8K-GPTQ", "TheBloke/Manticore-13B-Chat-Pyg-Guanaco-SuperHOT-8K-GPTQ", "TheBloke/Baize-v2-13B-SuperHOT-8K-GPTQ", "TheBloke/Koala-13B-SuperHOT-8K-GPTQ"]
+models_to_test=[ 'TheBloke/Vicuna-13B-CoT-GPTQ'
+ 'TheBloke/chronos-hermes-13B-GPTQ'
+ 'TheBloke/minotaur-13B-fixed-GPTQ'
+ 'TheBloke/Carl-13B-GPTQ',
+ 'TheBloke/LLaMA-13b-GPTQ',
+ 'TheBloke/vicuna-13B-1.1-GPTQ',]
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
@@ -124,7 +140,7 @@ base_client.connect(
     username='root',
     pkey=pkey,
     look_for_keys=False)
-base_shell = base_client.invoke_shell()
+base_shell = base_client.invoke_shell(width=120, height=30)
 base_shell.send('touch ~/.no_auto_tmux'+"\n")
 time.sleep(1)
 while not base_shell.recv_ready():
@@ -143,7 +159,7 @@ install_dep_client.connect(
     username='root',
     pkey=pkey,
     look_for_keys=False)
-dep_shell = install_dep_client.invoke_shell()
+dep_shell = install_dep_client.invoke_shell(width=120, height=30)
 dep_shell.send('tmux new -s install_deps' + "\n")
 
 scp = SCPClient(install_dep_client.get_transport())
@@ -173,9 +189,13 @@ while not dep_shell.recv_ready():
     time.sleep(1)
 print("Installing Dependancies")
 while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
-    refresh_tmux_pane(install_dep_client)
+    refresh_tmux_pane(install_dep_client,dep_shell)
     time.sleep(1)
 print("Dependancies Ready!")
+
+commands = ["pip3 install --upgrade nvitop", "nvitop"]
+commandstr = " && ".join(commands)
+dep_shell.send(commandstr+"\n")
 
 
 # Init UUIDs
@@ -191,7 +211,7 @@ model_shells: Dict[int,paramiko.Channel] = {} # dict to store all the models act
 
 
 base_port = 7777
-for i in range(number_of_gpus_in_instance):
+for i in range(len(models_to_test)):
     chosen_experiment_model_name = models_to_test[i]
     chosen_experiment_model_port = base_port + i
     # pass in the clients and shells, and use the experiment id to index them.
@@ -216,10 +236,10 @@ for i in range(number_of_gpus_in_instance):
         pkey=pkey,
         look_for_keys=False)
     
-    model_shells[i] = model_clients[i].invoke_shell()
+    model_shells[i] = model_clients[i].invoke_shell(width=120, height=30)
     model_shells[i].send(f'tmux new -s model_{str(i)}' + "\n")
     
-    experiment_shells[i] = experiment_clients[i].invoke_shell()
+    experiment_shells[i] = experiment_clients[i].invoke_shell(width=120, height=30)
     experiment_shells[i].send(f'tmux new -s experiment_{str(i)}' + "\n")
     
 print(f"Shells and Clients Initialized: {', '.join(str(a) for a in list(experiment_clients.keys()))}")
@@ -237,7 +257,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id}: Downloading Model(s)")
     
     while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(model_clients[experiment_id]):
-        refresh_tmux_pane(model_clients[experiment_id])
+        refresh_tmux_pane(model_clients[experiment_id], model_shells[experiment_id])
         time.sleep(1)
     print(f"Model {experiment_id} Ready!")
     # I need to launch this in its own screen
@@ -261,14 +281,14 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         time.sleep(1)
     print(f"{experiment_id}:Launching Model: {model_uuid}")
     while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
-        refresh_tmux_pane(model_clients[experiment_id])
+        refresh_tmux_pane(model_clients[experiment_id], model_shells[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
     # 
     # Launch Experiment
     # Start Screen
-    time.sleep(0.3)
+    time.sleep(5)
 
     # Run Experiment
     experiment_shells[experiment_id].send("cd /root/dataset_enrichment/enrichment_pipeline"+"\n")
@@ -280,7 +300,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")
     while "Experiment Complete" not in get_tmux_content(experiment_clients[experiment_id]):
-        refresh_tmux_pane(experiment_clients[experiment_id])
+        refresh_tmux_pane(experiment_clients[experiment_id], experiment_shells[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Done: {launch_args['local_port']}!")
 
@@ -307,6 +327,9 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     experiment_shells[experiment_id].send(f"git config --global user.email 'deckenball@gmail.com' && git config --global user.name 'AutoVastAI'"+"\n")
     time.sleep(2)
     
+    experiment_shells[experiment_id].send(f"git pull"+"\n")
+    time.sleep(20)
+    
     experiment_shells[experiment_id].send(f"git add ."+"\n")
     time.sleep(5)
 
@@ -325,7 +348,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
 # (chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,clients,shells):
 # Get all the different threads going
 threads = []
-for i in range(number_of_gpus_in_instance):
+for i in range(len(models_to_test)):
     chosen_experiment_model_name = models_no_rep_name[i]
     chosen_experiment_model_port = base_port + i
     
