@@ -32,7 +32,7 @@ print("Loading model:", model_directory)
 model.load([18, 24])
 tokenizer = ExLlamaV2Tokenizer(config)
 
-# Initialize cache with default size of 3 for num_completions
+# Initialize cache with default size
 cache = ExLlamaV2Cache(model, batch_size=3)
 generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
 
@@ -61,10 +61,6 @@ def generate_output(text, max_new_tokens, temperature, top_p, top_k, repetition_
     t_per_s = (max_new_tokens * num_completions) / time_taken
 
     return outputs, t_per_s
-
-# ... [rest of the Flask code]
-
-
 
 app = Flask(__name__)
 
