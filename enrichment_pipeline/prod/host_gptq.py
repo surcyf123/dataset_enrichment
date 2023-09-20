@@ -8,6 +8,10 @@ model_directory = sys.argv[1]
 port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
+
+# Set the CUDA device
+torch.cuda.set_device(gpu_id)
+
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
 # Fixing the model_directory assignment
@@ -26,7 +30,6 @@ model.load([18, 24])
 tokenizer = ExLlamaV2Tokenizer(config)
 generator = ExLlamaV2BaseGenerator(model, None, tokenizer)  # Initialize with no cache for now
 generator.warmup()
-
 
 def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repetition_penalty, stopwords, num_completions):
 
