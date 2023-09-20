@@ -46,12 +46,23 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     settings.disallow_tokens(tokenizer, [tokenizer.eos_token_id])
     settings.token_bias = None
     
-    # Create a list of prompts
-    prompts = [text] * num_completions
-    time.begin = time.time()
-    generator.warmup()
-    full_texts = generator.generate_simple(prompts, settings, max_new_tokens, seed=None)
-    outputs = [full_text[len(text):] for full_text in full_texts]
+    outputs = []
+
+    for _ in range(num_completions):
+        # Measure start time
+        time_begin = time.time()
+        
+        # Warm up the generator
+        generator.warmup()
+        
+        # Generate text using the string prompt
+        full_text = generator.generate_simple(text, settings, max_new_tokens, seed=None)
+        
+        # Extract the generated portion from the full text
+        output = full_text[len(text):]
+        
+        outputs.append(output)
+
 
     time_taken = time.time() - time_begin
     t_per_s = (max_new_tokens * num_completions) / time_taken
