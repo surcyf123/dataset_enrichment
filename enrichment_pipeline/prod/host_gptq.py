@@ -1,19 +1,27 @@
 import sys
 import os
-import time
-import re
-from flask import Flask, request, jsonify
-from exllamav2 import (ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer)
-from exllamav2.generator import (ExLlamaV2BaseGenerator, ExLlamaV2Sampler)
+import torch
 
 model_directory = sys.argv[1]
 port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
 
+# Set CUDA environment variables
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+print("Set CUDA_VISIBLE_DEVICES to:", os.environ["CUDA_VISIBLE_DEVICES"])
+# device = torch.device(f"cuda:{gpu_id}")
+
+# Ensure model_directory is correctly set
 model_directory.replace("~", "/root")
+
+# Add root to system path
 sys.path.append("/root/")
+
+from flask import Flask, request, jsonify
+from exllamav2 import (ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer)
+from exllamav2.generator import (ExLlamaV2BaseGenerator, ExLlamaV2Sampler)
 
 config = ExLlamaV2Config()
 config.model_dir = model_directory
