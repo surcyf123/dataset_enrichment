@@ -1,7 +1,7 @@
 import sys
 import os
 import torch
-
+import time 
 model_directory = sys.argv[1]
 port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
@@ -48,7 +48,7 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     
     # Create a list of prompts
     prompts = [text] * num_completions
-    
+    time.begin = time.time()
     generator.warmup()
     full_texts = generator.generate_simple(prompts, settings, max_new_tokens, seed=None)
     outputs = [full_text[len(text):] for full_text in full_texts]
