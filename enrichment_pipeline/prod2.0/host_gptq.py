@@ -22,7 +22,7 @@ def generate_output(text: str):
     sampling_params = SamplingParams(
         temperature=0.9, top_p=1.0, top_k=80
     )
-    num_responses = 3  # Number of varied responses for each prompt
+    num_responses = 1 # Number of varied responses for each prompt
     outputs = llm.generate([text], sampling_params, n=num_responses)
     return [output.outputs[0].text for output in outputs[0]]
 
