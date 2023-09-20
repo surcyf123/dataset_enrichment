@@ -24,8 +24,6 @@ model = ExLlamaV2(config)
 print("Loading model: " + model_directory)
 model.load([18, 24])
 tokenizer = ExLlamaV2Tokenizer(config)
-
-# Move warmup outside of the generate_output function
 generator = ExLlamaV2BaseGenerator(model, None, tokenizer)  # Initialize with no cache for now
 generator.warmup()
 
