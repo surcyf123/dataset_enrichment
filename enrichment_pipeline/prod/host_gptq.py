@@ -23,6 +23,7 @@ from flask import Flask, request, jsonify
 from exllamav2 import (ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer)
 from exllamav2.generator import (ExLlamaV2BaseGenerator, ExLlamaV2Sampler)
 
+# Configure and load model
 config = ExLlamaV2Config()
 config.model_dir = model_directory
 config.prepare()
@@ -31,8 +32,8 @@ print("Loading model:", model_directory)
 model.load([18, 24])
 tokenizer = ExLlamaV2Tokenizer(config)
 
-# Initialize cache and generator
-cache = ExLlamaV2Cache(model)
+# Initialize cache with default size of 3 for num_completions
+cache = ExLlamaV2Cache(model, batch_size=3)
 generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
 
 # Warm up the model
@@ -40,6 +41,10 @@ generator.warmup()
 
 def generate_output(text, max_new_tokens, temperature, top_p, top_k, repetition_penalty, stopwords, num_completions):
     """Generate text completions based on the given settings."""
+    if num_completions != 3:
+        cache = ExLlamaV2Cache(model, batch_size=num_completions)
+        generator.cache = cache
+
     settings = ExLlamaV2Sampler.Settings()
     settings.temperature = temperature
     settings.top_k = top_k
@@ -56,6 +61,10 @@ def generate_output(text, max_new_tokens, temperature, top_p, top_k, repetition_
     t_per_s = (max_new_tokens * num_completions) / time_taken
 
     return outputs, t_per_s
+
+# ... [rest of the Flask code]
+
+
 
 app = Flask(__name__)
 
