@@ -19,7 +19,8 @@ pip3 install flask nvitop tqdm torch tiktoken transformers peft accelerate torch
 curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
 sudo apt-get install git-lfs
 git lfs install
-
+echo "export CUDA_HOME=/usr/local/cuda">>~/.bashrc
+source ~/.bashrc
 git clone https://github.com/turboderp/exllamav2 && cd exllamav2 && pip install -r requirements.txt && python3 setup.py install --user && cd ..
 
 sed -i "/^PATH='\/opt\/conda\/bin:\/usr\/local\/nvidia\/bin:\/usr\/local\/cuda\/bin:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin'$/s/^/#/" ~/.bashrc
