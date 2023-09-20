@@ -23,13 +23,14 @@ config.prepare()
 model = ExLlamaV2(config)
 print("Loading model: " + model_directory)
 model.load([18, 24])
+
 tokenizer = ExLlamaV2Tokenizer(config)
+cache = ExLlamaV2Cache(model)
+
+generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
+
 
 def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repetition_penalty, stopwords, num_completions):
-
-    # Initialize the cache and generator inside the function
-    cache = ExLlamaV2Cache(model, batch_size=num_completions)
-    generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
 
     settings = ExLlamaV2Sampler.Settings()
     settings.temperature = temperature
@@ -68,9 +69,7 @@ def generate_text():
         raise ValueError(f"Invalid gpu_type: {gpu_type}")
 
     data = request.json
-    
-    # Set default value for num_responses if not found in data
-    num_responses = data.get('num_responses', 3)
+    num_responses = 3  # Number of varied responses for each prompt
 
     # Generate multiple outputs for the prompt
     responses, t_per_s = generate_output(
@@ -85,7 +84,6 @@ def generate_text():
     )
 
     return jsonify({'response': responses, "model": model_directory, "tokens_per_second": t_per_s})
-
 
 
 if __name__ == '__main__':
