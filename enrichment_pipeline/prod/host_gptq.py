@@ -40,14 +40,17 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     settings.disallow_tokens(tokenizer, [tokenizer.eos_token_id])
     settings.token_bias = None
     
-    outputs = []
+    # Create a list of prompts
+    prompts = [text] * num_completions
+    
     time_begin = time.time()
     generator.warmup()
 
-    for _ in range(num_completions):
-        full_text = generator.generate_simple(text, settings, max_new_tokens, seed=None)
-        completion_only = full_text[len(text):]  # Extract only the completion by removing the prompt
-        outputs.append(completion_only)
+    # Generate completions for all prompts in one call
+    full_texts = generator.generate_simple(prompts, settings, max_new_tokens, seed=None)
+    
+    # Extract only the completions by removing the prompts
+    outputs = [full_text[len(text):] for full_text in full_texts]
 
     time_end = time.time()
     time_total = time_end - time_begin
