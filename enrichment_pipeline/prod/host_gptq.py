@@ -2,19 +2,18 @@ import sys
 import os
 import time
 import re
+from flask import Flask, request, jsonify
+from exllamav2 import (ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer)
+from exllamav2.generator import (ExLlamaV2BaseGenerator, ExLlamaV2Sampler)
 
 model_directory = sys.argv[1]
 port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
+
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-print(model_directory)
 model_directory.replace("~", "/root")
 sys.path.append("/root/")
-print(f"sys.path: ", sys.path)
-from flask import Flask, request, jsonify
-from exllamav2 import(ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer,)
-from exllamav2.generator import (ExLlamaV2BaseGenerator, ExLlamaV2Sampler)
 
 config = ExLlamaV2Config()
 config.model_dir = model_directory
@@ -23,14 +22,13 @@ config.prepare()
 model = ExLlamaV2(config)
 print("Loading model: " + model_directory)
 model.load([18, 24])
-
 tokenizer = ExLlamaV2Tokenizer(config)
-cache = ExLlamaV2Cache(model)
-
-generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
-
 
 def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repetition_penalty, stopwords, num_completions):
+
+    # Initialize the cache and generator inside the function
+    cache = ExLlamaV2Cache(model, batch_size=num_completions)
+    generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
 
     settings = ExLlamaV2Sampler.Settings()
     settings.temperature = temperature
@@ -43,22 +41,17 @@ def generate_output(text: str, max_new_tokens, temperature, top_p, top_k, repeti
     # Create a list of prompts
     prompts = [text] * num_completions
     
-    time_begin = time.time()
     generator.warmup()
-
-    # Generate completions for all prompts in one call
     full_texts = generator.generate_simple(prompts, settings, max_new_tokens, seed=None)
-    
-    # Extract only the completions by removing the prompts
     outputs = [full_text[len(text):] for full_text in full_texts]
 
-    time_end = time.time()
-    time_total = time_end - time_begin
-    t_per_s = (max_new_tokens * num_completions) / time_total
+    time_taken = time.time() - time_begin
+    t_per_s = (max_new_tokens * num_completions) / time_taken
 
     return outputs, t_per_s
 
 app = Flask(__name__)
+
 @app.route('/generate', methods=['POST'])
 def generate_text():
     if gpu_type == "3090":
@@ -69,9 +62,8 @@ def generate_text():
         raise ValueError(f"Invalid gpu_type: {gpu_type}")
 
     data = request.json
-    num_responses = 3  # Number of varied responses for each prompt
+    num_responses = data.get('num_responses', 3)
 
-    # Generate multiple outputs for the prompt
     responses, t_per_s = generate_output(
         data['prompt'],
         num_tokens,
@@ -84,7 +76,6 @@ def generate_text():
     )
 
     return jsonify({'response': responses, "model": model_directory, "tokens_per_second": t_per_s})
-
 
 if __name__ == '__main__':
     app.run(debug=False, host="0.0.0.0", port=port)
