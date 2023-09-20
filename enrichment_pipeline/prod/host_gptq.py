@@ -1,24 +1,18 @@
-import sys
 import os
-from flask import Flask, request, jsonify
-from exllamav2 import ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer
-from exllamav2.generator import ExLlamaV2BaseGenerator, ExLlamaV2Sampler
+import sys
 
 model_directory = sys.argv[1]
 port = int(sys.argv[2])
 gpu_id = int(sys.argv[3])
 gpu_type = sys.argv[4]
-
-# Set the CUDA device
-torch.cuda.set_device(gpu_id)
-
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-
-# Fixing the model_directory assignment
-model_directory = model_directory.replace("~", "/root")
-
+print(model_directory)
+model_directory.replace("~", "/root")
 sys.path.append("/root/")
+# print(f"sys.path: ", sys.path)
 from flask import Flask, request, jsonify
+from exllamav2 import(ExLlamaV2, ExLlamaV2Config, ExLlamaV2Cache, ExLlamaV2Tokenizer,)
+from exllamav2.generator import (ExLlamaV2BaseGenerator, ExLlamaV2Sampler)
 
 config = ExLlamaV2Config()
 config.model_dir = model_directory
