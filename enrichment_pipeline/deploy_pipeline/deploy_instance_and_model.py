@@ -44,7 +44,7 @@ models_to_test=[ 'TheBloke/Vicuna-13B-CoT-GPTQ'
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
 for model_name in models_to_test:
-    models_no_rep_name.append(model_name.replace("TheBloke/",""))
+    models_no_rep_name.append(model_name.split("/")[1])
 
 # First we launch the instance and install dependancies
 
