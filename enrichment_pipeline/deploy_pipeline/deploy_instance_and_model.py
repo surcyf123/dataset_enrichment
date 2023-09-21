@@ -18,18 +18,15 @@ active_branch = "ethan/0.3-pushing-results"
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
 reward_endpoints = [
-    "http://70.52.53.190:50305",
-    "http://70.52.53.190:50336",
-    "http://70.52.53.190:50365",
-    "http://70.52.53.190:50334",
-    "http://47.189.79.46:50159",
+    # numbers after GPU type is ranked by speed of that type
+    "http://47.189.79.46:50159", # 3090s1
     "http://47.189.79.46:50108",
     "http://47.189.79.46:50193",
     "http://47.189.79.46:50060",
-    "http://93.206.137.205:48183",
-    "http://93.206.137.205:48076",
-    "http://93.206.137.205:48182",
-    "http://93.206.137.205:48038"
+    'http://211.21.106.84:57414', # 3090s2
+    'http://211.21.106.84:57515',
+    'http://211.21.106.84:57298',
+    'http://211.21.106.84:57445',
 ] # vast 4
 # Define which models we want to test
 
