@@ -25,7 +25,7 @@ with open("/root/"+model_name+"/README.md",'r') as readmefile:
     content = readmefile.read()
     
 
-prompt_template = content.split("prompt_template")[1].split("quantized_by")[0].replace(": '","").replace("'\n","").rstrip()
+prompt_template = content.split("<!-- prompt-template start -->")[1].split("<!-- prompt-template end -->")[0].split("```")[1].rstrip().lstrip()
 
 
 hyperparameter_searches = {
@@ -39,7 +39,7 @@ hyperparameter_searches = {
 def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
     '''Returns the generated text, along with how long it took to execute'''
     data = {
-    "prompt": prompt,
+    "prompt": prompt_template.replace("{prompt}",prompt.rstrip()),
     "max_new_tokens": num_tokens,
     "temperature": temperature,
     "top_p": top_p,
@@ -52,14 +52,14 @@ def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:fl
     elapsed_time = time.time() - start_time
     return response.json()['text'],elapsed_time
 # %%
-def get_scores_from_reward_model(original_prompt:str,response:str,prompt_fmt:str) -> Dict:
+def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     '''Take the prompt, as well as the response, and return scores'''
     url = reward_endpoint
 
     # Data to send
     data = {
         "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
-        "prompt": prompt_template.replace("{prompt}",original_prompt.rstrip()),
+        "prompt": original_prompt,
         "completions": [response]
     }
 
