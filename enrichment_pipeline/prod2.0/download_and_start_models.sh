@@ -26,11 +26,11 @@ models4x2p1=("Mythical-Destroyer-L2-13B-GPTQ" "MythoBoros-13B-GPTQ" "StableBelug
 models4x2p2=("Baize-v2-13B-SuperHOT-8K-GPTQ" "orca_mini_v3_13B-GPTQ" "Chronoboros-Grad-L2-13B-GPTQ" "Project-Baize-v2-13B-GPTQ")
 models4x3p1=("PuddleJumper-13B-GPTQ" "Luban-13B-GPTQ" "LosslessMegaCoder-Llama2-13B-Mini-GPTQ" "OpenOrca-Platypus2-13B-GPTQ")
 models4x3p2=("OpenOrca-Platypus2-13B-GPTQ" "Llama2-13B-MegaCode2-OASST-GPTQ" "Chronos-Hermes-13B-SuperHOT-8K-GPTQ" "OpenOrcaxOpenChat-Preview2-13B-GPTQ")
-
+models8x1a=("Luban-13B-AWQ" "Chronos-Beluga-v2-13B-AWQ" "Huginn-13B-v4.5-AWQ" "Huginn-13B-v4-AWQ" "Huginn-v3-13B-AWQ" "Stheno-Inverted-L2-13B-AWQ" "Mythical-Destroyer-V2-L2-13B-AWQ" "OpenOrca-Platypus2-13B-AWQ")
 # Use a case statement to assign models based on model_choice
 case "$model_choice" in
-    "models8x1")
-        models=("${models8x1[@]}")
+    "models8x1a")
+        models=("${models8x1a[@]}")
         ;;
     "models8x2")
         models=("${models8x2[@]}")
