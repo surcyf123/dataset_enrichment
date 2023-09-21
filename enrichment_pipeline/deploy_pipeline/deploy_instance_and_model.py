@@ -31,12 +31,14 @@ reward_endpoints = [
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=[ 'TheBloke/Vicuna-13B-CoT-GPTQ'
- 'TheBloke/chronos-hermes-13B-GPTQ'
- 'TheBloke/minotaur-13B-fixed-GPTQ'
- 'TheBloke/Carl-13B-GPTQ',
- 'TheBloke/LLaMA-13b-GPTQ',
- 'TheBloke/vicuna-13B-1.1-GPTQ',]
+models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
+"TheBloke/minotaur-13B-GPTQ",
+"TheBloke/Nous-Puffin-70B-GPTQ",
+"TheBloke/airoboros-13B-GPTQ",
+"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
+"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
+"TheBloke/vicuna-13B-1.1-GPTQ",
+"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []

@@ -79,11 +79,26 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     }
 
     # Make the POST request
-    reward_response = requests.post(url, json=data)
-    if reward_response.status_code == 200:
-        return reward_response.json()
-    else:
-        print(f"Failed to get data: {reward_response.status_code}")
+    
+    for attempt in range(10): #makes 10 attempts to reward model
+        try:
+            # do thing
+            reward_response = requests.post(url, json=data)
+            if reward_response.status_code == 200:
+                return reward_response.json()
+            else:
+                raise Exception("It wasnt a success")
+
+        except:
+            print(f"Failed to connect to reward model, attempt: {str(attempt)}")
+            time.sleep(1)
+        
+        break
+
+    
+    
+    
+        
     
 # %%
 
