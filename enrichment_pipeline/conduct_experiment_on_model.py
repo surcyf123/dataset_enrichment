@@ -21,7 +21,7 @@ sample_size = 250
 sampled_prompts = prompts[:sample_size]
 from tqdm import tqdm
 
-with open("/root/"+model_name+"/README.md",'r') as readmefile:
+with open(model_name+"/README.md",'r') as readmefile:
     content = readmefile.read()
     
 
