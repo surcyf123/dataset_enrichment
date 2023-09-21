@@ -119,7 +119,7 @@ if prompt_formatting_found:
                 for top_p in hyperparameter_searches["top_p"]:
                     for top_k in hyperparameter_searches["top_k"]:
                         for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                            with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
+                            with open(f'results/{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
                                 retries = 0
                                 while True:
                                     try:
@@ -164,7 +164,7 @@ if prompt_formatting_found:
     import pandas as pd
     for num_tokens in hyperparameter_searches["num_tokens"]:       
         with open(f'results/{num_tokens}-{model_name}-fmt.txt', 'w') as f:
-            df = pd.read_csv(f'results/{num_tokens}-{model_name}.csv')
+            df = pd.read_csv(f'results/{num_tokens}-{model_name}-fmt.csv')
             f.write(f'gpu_name {gpu_name}\n')
             
             mean_duration = df['duration'].mean()
