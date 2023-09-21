@@ -1,6 +1,6 @@
 # %%
 import sys
-model_name_or_path = sys.argv[1]
+model_name = sys.argv[1]
 local_port = sys.argv[2]
 experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
@@ -20,6 +20,12 @@ random.shuffle(prompts)
 sample_size = 250
 sampled_prompts = prompts[:sample_size]
 from tqdm import tqdm
+
+with open("/root/"+model_name+"/README.md",'r') as readmefile:
+    content = readmefile.read()
+    
+
+prompt_template = content.split("prompt_template")[1].split("quantized_by")[0].replace(": '","").replace("'\n","").rstrip()
 
 
 hyperparameter_searches = {
@@ -46,14 +52,14 @@ def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:fl
     elapsed_time = time.time() - start_time
     return response.json()['text'],elapsed_time
 # %%
-def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
+def get_scores_from_reward_model(original_prompt:str,response:str,prompt_fmt:str) -> Dict:
     '''Take the prompt, as well as the response, and return scores'''
     url = reward_endpoint
 
     # Data to send
     data = {
         "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
-        "prompt": original_prompt.rstrip(),
+        "prompt": prompt_template.replace("{prompt}",original_prompt.rstrip()),
         "completions": [response]
     }
 
@@ -69,7 +75,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
 
 # Write the header to the CSV file
 for num_tokens in hyperparameter_searches["num_tokens"]:
-    with open(f'results/{num_tokens}-{model_name_or_path}.csv', mode='a', newline='') as csv_file:
+    with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
         fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         csv_writer.writeheader()
@@ -83,7 +89,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
             for top_p in hyperparameter_searches["top_p"]:
                 for top_k in hyperparameter_searches["top_k"]:
                     for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                        with open(f'results/{num_tokens}-{model_name_or_path}.csv', mode='a', newline='') as csv_file:
+                        with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
                             retries = 0
                             while True:
                                 try:
@@ -125,8 +131,8 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
 # Writing the stats
 import pandas as pd
 for num_tokens in hyperparameter_searches["num_tokens"]:       
-    with open(f'results/{num_tokens}-{model_name_or_path}.txt', 'w') as f:
-        df = pd.read_csv(f'results/{num_tokens}-{model_name_or_path}.csv')
+    with open(f'results/{num_tokens}-{model_name}.txt', 'w') as f:
+        df = pd.read_csv(f'results/{num_tokens}-{model_name}.csv')
         f.write(f'gpu_name {gpu_name}\n')
         
         mean_duration = df['duration'].mean()
