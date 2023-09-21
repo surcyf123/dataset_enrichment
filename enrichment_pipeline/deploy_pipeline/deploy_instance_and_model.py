@@ -1,6 +1,6 @@
 # %%
 import subprocess
-from utils import get_tmux_content
+from utils import get_tmux_content, refresh_tmux_pane
 import pandas as pd
 import shlex
 import re
@@ -13,28 +13,30 @@ import threading
 from typing import Dict
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-active_branch = "main"
+active_branch = "ethan/use-the-bloke-scraping"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
-reward_endpoints = [
-    "http://90.84.239.86:40357","http://90.84.239.86:40264","http://90.84.239.86:40332","http://90.84.239.86:40378", # Server 1, 4x4090, ssh -p 40243 root@90.84.239.86 -L 8080:localhost:8080
-    "http://36.225.152.8:40594","http://36.225.152.8:40565","http://36.225.152.8:40512","http://36.225.152.8:40554", # Server 2, 4x4090, ssh -p 40543 root@36.225.152.8 -L 8080:localhost:8080
-    "http://81.79.125.89:45654","http://81.79.125.89:45829","http://81.79.125.89:45395","http://81.79.125.89:45550", # Server 3, 4x4090 ssh -p 45648 root@81.79.125.89 -L 8080:localhost:8080
-    ]
+reward_endpoints = ["http://142.182.6.112:55469", "http://142.182.6.112:55467", "http://142.182.6.112:55430", "http://142.182.6.112:55430", #"vast2",
+    "http://184.67.78.114:42036", "http://184.67.78.114:42091", "http://184.67.78.114:42082", "http://184.67.78.114:42093", # "vast3",
+    "http://37.27.2.44:60113", "http://37.27.2.44:60180", "http://37.27.2.44:60151", "http://37.27.2.44:60181"] # vast 4
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=['TheBloke/Airochronos-L2-13B-GPTQ','TheBloke/Stheno-Inverted-L2-13B-GPTQ','TheBloke/Mythical-Destroyer-L2-13B-GPTQ','TheBloke/llama-2-13B-Guanaco-QLoRA-GPTQ','cerebras/btlm-3b-8k-base','TheBloke/Synthia-13B-GPTQ','TheBloke/Hermes-LLongMA-2-7B-8K-GPTQ','TheBloke/Llama-2-13B-GPTQ']
+models_to_test=["TheBloke/CAMEL-13B-Combined-Data-SuperHOT-8K-GPTQ", "TheBloke/GPT4All-13B-Snoozy-SuperHOT-8K-GPTQ", "TheBloke/Chronos-13B-SuperHOT-8K-GPTQ", "TheBloke/Pygmalion-13B-SuperHOT-8K-GPTQ", "TheBloke/wizard-vicuna-13B-SuperHOT-8K-GPTQ", "TheBloke/Manticore-13B-Chat-Pyg-Guanaco-SuperHOT-8K-GPTQ", "TheBloke/Baize-v2-13B-SuperHOT-8K-GPTQ", "TheBloke/Koala-13B-SuperHOT-8K-GPTQ"]
 
+print(f"Testing Models: {', '.join(models_to_test)}")
+models_no_rep_name = []
+for model_name in models_to_test:
+    models_no_rep_name.append(model_name.replace("TheBloke/",""))
 
 # First we launch the instance and install dependancies
 
 # Finds all available instances
-gpu_name = "RTX_3090"
+gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "dph_total"'
+search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
@@ -124,6 +126,7 @@ base_client.connect(
     look_for_keys=False)
 base_shell = base_client.invoke_shell()
 base_shell.send('touch ~/.no_auto_tmux'+"\n")
+time.sleep(1)
 while not base_shell.recv_ready():
     time.sleep(1)
 base_client.close()
@@ -163,13 +166,14 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","cat /root/dataset_enrichment/credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio vllm auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
     time.sleep(1)
 print("Installing Dependancies")
 while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
+    refresh_tmux_pane(install_dep_client)
     time.sleep(1)
 print("Dependancies Ready!")
 
@@ -224,7 +228,7 @@ print(f"Shells and Clients Initialized: {', '.join(str(a) for a in list(experime
 
 def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells):
     # Download Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
     # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
@@ -233,6 +237,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id}: Downloading Model(s)")
     
     while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(model_clients[experiment_id]):
+        refresh_tmux_pane(model_clients[experiment_id])
         time.sleep(1)
     print(f"Model {experiment_id} Ready!")
     # I need to launch this in its own screen
@@ -249,13 +254,14 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         'reward_endpoint' : reward_endpoints[experiment_id]
     }
     # Run Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path'].replace('TheBloke/', '')} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
         time.sleep(1)
     print(f"{experiment_id}:Launching Model: {model_uuid}")
     while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
+        refresh_tmux_pane(model_clients[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
@@ -274,24 +280,21 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")
     while "Experiment Complete" not in get_tmux_content(experiment_clients[experiment_id]):
+        refresh_tmux_pane(experiment_clients[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Done: {launch_args['local_port']}!")
 
     # Get the experiment averages
     
-
     
 
     # Upload Results to Git
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
     time.sleep(0.1)
-    print("Pushing Results: " + models_to_test[experiment_id])
-    experiment_filename = models_to_test[experiment_id].replace("cerebras/","")
+    print(f"{experiment_id} Pushing Results: " + models_to_test[experiment_id])
     experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mkdir {experiment_filename}"+"\n")
-    time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{experiment_filename}* /root/quantized_reward_results/{experiment_filename}/"+"\n")
+    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/"+"\n")
     time.sleep(1)
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
@@ -300,7 +303,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     experiment_shells[experiment_id].send(f"git add ."+"\n")
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
-    experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {experiment_filename}.'"+"\n")
+    experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {chosen_experiment_model_name}.'"+"\n")
     while not experiment_shells[experiment_id].recv_ready():
         time.sleep(1)
     
@@ -318,7 +321,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
 # Get all the different threads going
 threads = []
 for i in range(number_of_gpus_in_instance):
-    chosen_experiment_model_name = models_to_test[i]
+    chosen_experiment_model_name = models_no_rep_name[i]
     chosen_experiment_model_port = base_port + i
     
     t = threading.Thread(target=download_model_run_experiment_upload_results, args=(chosen_experiment_model_name, chosen_experiment_model_port, i,model_clients,model_shells,experiment_clients,experiment_shells))

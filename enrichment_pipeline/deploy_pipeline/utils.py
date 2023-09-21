@@ -5,6 +5,10 @@ def get_tmux_content(ssh_client):
     return stdout.read().decode('utf-8')
 
 
+def refresh_tmux_pane(ssh_client):
+    command = "tmux refresh-client"
+    ssh_client.exec_command(command)
+
 def stub_call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:float, top_k:int, repetition_penalty:float) -> Tuple[str,float]:
     '''Returns the generated text, along with how long it took to execute'''
     data = {
