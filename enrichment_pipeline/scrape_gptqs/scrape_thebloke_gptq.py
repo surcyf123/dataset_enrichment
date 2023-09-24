@@ -53,7 +53,7 @@ def get_gptq_models():
 # Get the models and write to a JSON file
 models = get_gptq_models()
 filepath = "gptq_dicts/thebloke_gptqs.json"
-with open(filepath "w") as outfile:
+with open(filepath, "w") as outfile:
     json.dump(models, outfile, indent=4)
 
 print(f"Data written to {filepath}")
