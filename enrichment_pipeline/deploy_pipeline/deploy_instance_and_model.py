@@ -13,33 +13,32 @@ import threading
 from typing import Dict
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-active_branch = "ethan/0.3-pushing-results"
+active_branch = "ethan/prompt-formatting"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
 reward_endpoints = [
-    "http://70.52.53.190:50305",
-    "http://70.52.53.190:50336",
-    "http://70.52.53.190:50365",
-    "http://70.52.53.190:50334",
-    "http://47.189.79.46:50159",
+    # numbers after GPU type is ranked by speed of that type
+    "http://47.189.79.46:50159", # 3090s1
     "http://47.189.79.46:50108",
     "http://47.189.79.46:50193",
     "http://47.189.79.46:50060",
-    "http://93.206.137.205:48183",
-    "http://93.206.137.205:48076",
-    "http://93.206.137.205:48182",
-    "http://93.206.137.205:48038"
+    'http://211.21.106.84:57414', # 3090s2
+    'http://211.21.106.84:57515',
+    'http://211.21.106.84:57298',
+    'http://211.21.106.84:57445',
 ] # vast 4
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=[ 'TheBloke/Vicuna-13B-CoT-GPTQ'
- 'TheBloke/chronos-hermes-13B-GPTQ'
- 'TheBloke/minotaur-13B-fixed-GPTQ'
- 'TheBloke/Carl-13B-GPTQ',
- 'TheBloke/LLaMA-13b-GPTQ',
- 'TheBloke/vicuna-13B-1.1-GPTQ',]
+models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
+"TheBloke/minotaur-13B-GPTQ",
+"TheBloke/Nous-Puffin-70B-GPTQ",
+"TheBloke/airoboros-13B-GPTQ",
+"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
+"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
+"TheBloke/vicuna-13B-1.1-GPTQ",
+"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
