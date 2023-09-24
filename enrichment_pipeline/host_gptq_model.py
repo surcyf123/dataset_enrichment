@@ -7,7 +7,7 @@ model_name_or_path = sys.argv[1]
 local_port = sys.argv[2]
 gpuid = str(sys.argv[3])
 
-
+import threading, time
 from flask import Flask, request, jsonify
 
 import accelerate
@@ -83,5 +83,12 @@ def generate_text():
     
     return jsonify({'text': text})
 
-if __name__ == '__main__':
+def run_app():
     app.run(debug=False, port=local_port)
+
+if __name__ == '__main__':
+    t = threading.Thread(target=run_app)
+    t.start()
+    # Give Flask some time to start
+    time.sleep(60)
+    print("3ade9fc2-84d5-4a25-8aca-a19f5f301a1d")

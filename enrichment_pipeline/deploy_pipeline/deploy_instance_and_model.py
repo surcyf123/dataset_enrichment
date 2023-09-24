@@ -13,7 +13,7 @@ import threading
 from typing import Dict
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-active_branch = "ethan/prompt-formatting"
+active_branch = "journey-to-0.4"
 # TODO: Handle when you are outbid
 # TODO: Find the number of GPUs, and launch that many models
 # TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
@@ -181,7 +181,9 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "git clone https://github.com/chu-tianxiang/vllm-gptq.git", "cd vllm-gptq", "pip3 install -e .","cat /root/dataset_enrichment/credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "cat /root/dataset_enrichment/credentials/ckpt1"]
+
+# commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "git clone https://github.com/chu-tianxiang/vllm-gptq.git", "cd vllm-gptq", "pip3 install -e .","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
@@ -273,15 +275,15 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         'reward_endpoint' : reward_endpoints[experiment_id]
     }
     # Run Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model_vllm.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
         time.sleep(1)
     print(f"{experiment_id}:Launching Model: {model_uuid}")
-    while "Serving Flask app" not in get_tmux_content(model_clients[experiment_id]):
+    while "3ade9fc2-84d5-4a25-8aca-a19f5f301a1d" not in get_tmux_content(model_clients[experiment_id]):
         refresh_tmux_pane(model_clients[experiment_id], model_shells[experiment_id])
-        time.sleep(1)
+        time.sleep(5)
     print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
     # 
@@ -298,7 +300,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")
-    while "Experiment Complete" not in get_tmux_content(experiment_clients[experiment_id]):
+    while "94eeefb6-4ea0-4aa5-8a86-11f4282ce35e" not in get_tmux_content(experiment_clients[experiment_id]):
         refresh_tmux_pane(experiment_clients[experiment_id], experiment_shells[experiment_id])
         time.sleep(1)
     print(f"Model {model_uuid} Done: {launch_args['local_port']}!")
