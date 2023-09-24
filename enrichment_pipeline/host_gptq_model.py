@@ -90,5 +90,6 @@ if __name__ == '__main__':
     t = threading.Thread(target=run_app)
     t.start()
     # Give Flask some time to start
-    time.sleep(60)
-    print("3ade9fc2-84d5-4a25-8aca-a19f5f301a1d")
+    time.sleep(120)
+    with open(f'/root/ckpts/{gpuid}_ckpt3', 'w') as fp:
+        pass

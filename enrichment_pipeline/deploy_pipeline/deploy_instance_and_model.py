@@ -1,6 +1,6 @@
 # %%
 import subprocess
-from utils import get_tmux_content, refresh_tmux_pane
+from utils import get_tmux_content, refresh_tmux_pane, check_existence_of_filename
 import pandas as pd
 import shlex
 import re
@@ -31,14 +31,10 @@ reward_endpoints = [
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
-"TheBloke/minotaur-13B-GPTQ",
-"TheBloke/Nous-Puffin-70B-GPTQ",
-"TheBloke/airoboros-13B-GPTQ",
-"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
-"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
-"TheBloke/vicuna-13B-1.1-GPTQ",
-"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
+models_to_test=["TheBloke/CodeLlama-13B-Python-GPTQ",
+"TheBloke/airoboros-13B-gpt4-1.2-GPTQ",
+"TheBloke/CAMEL-13B-Role-Playing-Data-GPTQ",
+"TheBloke/robin-13B-v2-GPTQ",]
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
@@ -107,7 +103,7 @@ get_port_and_ip_output = subprocess.run(['./vast.py']+shlex.split(get_port_and_i
 res_json = json.loads(get_port_and_ip_output.stdout)
 instance_addr:str = res_json['ssh_host']
 instance_port:int = int(res_json['ssh_port'])
-print(f'Connect via SSH:\nssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p {instance_port} root@{instance_addr} -L 8080:localhost:8080 \n')
+print(f'Connect via SSH:\nssh -o "IdentitiesOnly=yes" -i /home/bird/dataset_enrichment/credentials/autovastai -p {instance_port} root@{instance_addr} -L 8080:localhost:8080 -oStrictHostKeyChecking=no\n')
 time.sleep(10) # Sleep for better SSH reliability
 
 # Set up the SSH client
@@ -147,6 +143,17 @@ while not base_shell.recv_ready():
 base_client.close()
 
 
+
+check_base_ckpt_client = paramiko.SSHClient()
+check_base_ckpt_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
+
+check_base_ckpt_client.connect(
+    hostname=instance_addr,
+    port=instance_port, 
+    username='root',
+    pkey=pkey,
+    look_for_keys=False)
+
 # SCP and Register Private Key for Machine Account on a new client with tmux
 
 install_dep_client = paramiko.SSHClient()
@@ -181,7 +188,7 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "cat /root/dataset_enrichment/credentials/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","cp /root/dataset_enrichment/credentials/ckpt1 /root/ckpts/ckpt1"]
 
 # commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "git clone https://github.com/chu-tianxiang/vllm-gptq.git", "cd vllm-gptq", "pip3 install -e .","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
@@ -189,11 +196,10 @@ dep_shell.send(commandstr+"\n")
 while not dep_shell.recv_ready():
     time.sleep(1)
 print("Installing Dependancies")
-while "8f4d7cb3-a7a3-4e7d-9bb5-82b593196b95" not in get_tmux_content(install_dep_client):
-    refresh_tmux_pane(install_dep_client,dep_shell)
+while "thefileishereandthisisnotafluke" not in check_existence_of_filename("ckpt1",check_base_ckpt_client):
     time.sleep(1)
 print("Dependancies Ready!")
-
+# %% 
 commands = ["pip3 install --upgrade nvitop", "nvitop"]
 commandstr = " && ".join(commands)
 dep_shell.send(commandstr+"\n")
@@ -210,6 +216,7 @@ experiment_shells: Dict[int,paramiko.Channel] = {} # dict to store all the exper
 model_clients: Dict[int,paramiko.client.SSHClient] = {} # dict to store all the models active sessions' clients
 model_shells: Dict[int,paramiko.Channel] = {} # dict to store all the models active sessions' shells
 
+checker_clients = {}
 
 base_port = 7777
 for i in range(len(models_to_test)):
@@ -243,13 +250,24 @@ for i in range(len(models_to_test)):
     experiment_shells[i] = experiment_clients[i].invoke_shell(width=120, height=30)
     experiment_shells[i].send(f'tmux new -s experiment_{str(i)}' + "\n")
     
-print(f"Shells and Clients Initialized: {', '.join(str(a) for a in list(experiment_clients.keys()))}")
+    checker_clients[i] = paramiko.SSHClient()
+    checker_clients[i].set_missing_host_key_policy(paramiko.AutoAddPolicy())  # This is to set the policy to use when connecting to servers without known host keys
+
+    checker_clients[i].connect(
+        hostname=instance_addr,
+        port=instance_port, 
+        username='root',
+        pkey=pkey,
+        look_for_keys=False)
+    
+    
+print(f"Shells and Clients and Checkers Initialized: {', '.join(str(a) for a in list(experiment_clients.keys()))}")
 
 # ----------------------------------------------- This can be outside the threading ^ ---------------------------------------------
 
-def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells):
+def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells,checker_clients):
     # Download Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}","cat /root/dataset_enrichment/credentials/ckpt2"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"mv /root/dataset_enrichment/credentials/ckpt2 /root/ckpts/{experiment_id}_ckpt2"]
     # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
@@ -257,9 +275,9 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         time.sleep(1)
     print(f"{experiment_id}: Downloading Model(s)")
     
-    while "30ac9dfe-aef1-4766-a75e-0e14dd7ac27f" not in get_tmux_content(model_clients[experiment_id]):
-        refresh_tmux_pane(model_clients[experiment_id], model_shells[experiment_id])
+    while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt2",checker_clients[experiment_id]):
         time.sleep(1)
+    
     print(f"Model {experiment_id} Ready!")
     # I need to launch this in its own screen
     base_uuid = str(uuid.uuid4())
@@ -281,9 +299,9 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     while not model_shells[experiment_id].recv_ready():
         time.sleep(1)
     print(f"{experiment_id}:Launching Model: {model_uuid}")
-    while "3ade9fc2-84d5-4a25-8aca-a19f5f301a1d" not in get_tmux_content(model_clients[experiment_id]):
-        refresh_tmux_pane(model_clients[experiment_id], model_shells[experiment_id])
-        time.sleep(5)
+    while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt3",checker_clients[experiment_id]):
+        time.sleep(1)
+        
     print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
 
     # 
@@ -300,10 +318,9 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")
-    while "94eeefb6-4ea0-4aa5-8a86-11f4282ce35e" not in get_tmux_content(experiment_clients[experiment_id]):
-        refresh_tmux_pane(experiment_clients[experiment_id], experiment_shells[experiment_id])
+    while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt4",checker_clients[experiment_id]):
         time.sleep(1)
-    print(f"Model {model_uuid} Done: {launch_args['local_port']}!")
+    print(f"Experiment {experiment_id} Done!")
 
     # Get the experiment averages
     
@@ -313,35 +330,17 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     
     
     experiment_shells[experiment_id].send('chmod 600 ~/.ssh/autovastai && eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
-    time.sleep(0.3)
-    
-    print(f"{experiment_id} Pushing Results: " + models_to_test[experiment_id])
-    experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
-    time.sleep(0.3)
-    
-    experiment_shells[experiment_id].send(f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/"+"\n")
-    time.sleep(5)
+    time.sleep(3)
 
-    experiment_shells[experiment_id].send(f"cd /root/quantized_reward_results"+"\n")
-    time.sleep(0.3)
     
-    experiment_shells[experiment_id].send(f"git config --global user.email 'deckenball@gmail.com' && git config --global user.name 'AutoVastAI'"+"\n")
-    time.sleep(2)
+    commands = ["cd /root/quantized_reward_results",f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/","cd /root/quantized_reward_results","git config --global user.email 'deckenball@gmail.com'","git config --global user.name 'AutoVastAI'","git pull","git add .",f"git commit -m 'Added Experiment Results for {chosen_experiment_model_name}.'","git push origin main"]
+    # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
+    commandstr = " && ".join(commands)
+    experiment_shells[experiment_id].send(commandstr+"\n")
+    while not experiment_shells[experiment_id].recv_ready():
+        time.sleep(1)
     
-    experiment_shells[experiment_id].send(f"git pull"+"\n")
-    time.sleep(20)
-    
-    experiment_shells[experiment_id].send(f"git add ."+"\n")
-    time.sleep(5)
-
-    experiment_shells[experiment_id].send(f"git commit -m 'Added Experiment Results for {chosen_experiment_model_name}.'"+"\n")
-    time.sleep(5)
-    
-    experiment_shells[experiment_id].send(f"git push origin main"+"\n")
-    time.sleep(10)
     print("Results Pushed")
-    
-    
 
     # Close both screens for the model, and for the experiment running
     
