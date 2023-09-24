@@ -352,7 +352,7 @@ for i in range(len(models_to_test)):
     chosen_experiment_model_name = models_no_rep_name[i]
     chosen_experiment_model_port = base_port + i
     
-    t = threading.Thread(target=download_model_run_experiment_upload_results, args=(chosen_experiment_model_name, chosen_experiment_model_port, i,model_clients,model_shells,experiment_clients,experiment_shells))
+    t = threading.Thread(target=download_model_run_experiment_upload_results, args=(chosen_experiment_model_name, chosen_experiment_model_port, i,model_clients,model_shells,experiment_clients,experiment_shells,checker_clients))
 
     t.start()
     threads.append(t)
