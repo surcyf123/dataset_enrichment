@@ -31,10 +31,14 @@ reward_endpoints = [
 # Define which models we want to test
 
 # TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=["TheBloke/CodeLlama-13B-Python-GPTQ",
-"TheBloke/airoboros-13B-gpt4-1.2-GPTQ",
-"TheBloke/CAMEL-13B-Role-Playing-Data-GPTQ",
-"TheBloke/robin-13B-v2-GPTQ",]
+models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
+"TheBloke/minotaur-13B-GPTQ",
+"TheBloke/Nous-Puffin-70B-GPTQ",
+"TheBloke/airoboros-13B-GPTQ",
+"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
+"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
+"TheBloke/vicuna-13B-1.1-GPTQ",
+"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
@@ -83,6 +87,7 @@ assert('success' in launch_subprocess_output.stdout) # it will fail here if ther
 # Find instance ID and wait for it to be done
 instance_id:str =re.findall("('new_contract': )(.*)(})",launch_subprocess_output.stdout)[0][1]
 print("Instance is starting...")
+time.sleep(5)
 while True:
     check_instances_command = f'show instances'
     
@@ -188,7 +193,7 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","cp /root/dataset_enrichment/credentials/ckpt1 /root/ckpts/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","touch /root/ckpts/ckpt1"]
 
 # commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "git clone https://github.com/chu-tianxiang/vllm-gptq.git", "cd vllm-gptq", "pip3 install -e .","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
@@ -267,7 +272,7 @@ print(f"Shells and Clients and Checkers Initialized: {', '.join(str(a) for a in 
 
 def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells,checker_clients):
     # Download Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"mv /root/dataset_enrichment/credentials/ckpt2 /root/ckpts/{experiment_id}_ckpt2"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"touch /root/ckpts/{experiment_id}_ckpt2"]
     # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
@@ -314,7 +319,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai'+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_uuid} {launch_args['reward_endpoint']} {gpu_name}"+"\n")
+    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_id} {launch_args['reward_endpoint']} {gpu_name}"+"\n")
     time.sleep(0.1)
     
     print(f"{experiment_id}:Running Experiment: {model_uuid}")
