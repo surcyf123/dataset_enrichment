@@ -1,6 +1,6 @@
 # %%
 import subprocess
-from utils import get_tmux_content, refresh_tmux_pane, check_existence_of_filename
+from utils import check_existence_of_filename
 import pandas as pd
 import shlex
 import re
@@ -11,12 +11,50 @@ from scp import SCPClient
 import uuid
 import threading
 from typing import Dict
-pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
+import sys
+active_branch = "ethan/command-line-prompt-formatting"
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
-active_branch = "ethan/vllm-gptq-benchmarking"
-# TODO: Handle when you are outbid
-# TODO: Find the number of GPUs, and launch that many models
-# TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
+pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
+
+use_fmt_file = bool(sys.argv[1])
+fmt_file_path = sys.argv[2]
+
+if len(sys.argv) == 2:
+    with open("fmtEXAMPLE.json", "r") as f:
+        prompts = json.load(f)
+        
+    models_to_test = []
+    prompt_formats = []
+    for model in prompts:
+        k,v = list(model.items())[0]
+        models_to_test.append(k)
+        prompt_formats.append(v)
+    print("Using Default fmtEXAMPLE.json prompts")
+
+elif len(sys.argv) == 3:
+    with open(fmt_file_path, "r") as f:
+        prompts = json.load(f)
+        
+    models_to_test = []
+    prompt_formats = []
+    for model in prompts:
+        k,v = list(model.items())[0]
+        models_to_test.append(k)
+        prompt_formats.append(v)
+    print(f"Using prompts found at {fmt_file_path}")
+
+elif len(sys.argv) == 1:
+    models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
+"TheBloke/minotaur-13B-GPTQ",
+"TheBloke/Nous-Puffin-70B-GPTQ",
+"TheBloke/airoboros-13B-GPTQ",
+"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
+"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
+"TheBloke/vicuna-13B-1.1-GPTQ",
+"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
+    print("Using hardcoded models with auto prompt discovery")
+
+
 reward_endpoints = [
     # numbers after GPU type is ranked by speed of that type
     "http://47.189.79.46:50159", # 3090s1
@@ -27,18 +65,17 @@ reward_endpoints = [
     'http://211.21.106.84:57515',
     'http://211.21.106.84:57298',
     'http://211.21.106.84:57445',
-] # vast 4
-# Define which models we want to test
+] 
 
-# TheBloke/Pygmalion-2-13B-GPTQ    #7777 (int)          0
-models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
-"TheBloke/minotaur-13B-GPTQ",
-"TheBloke/Nous-Puffin-70B-GPTQ",
-"TheBloke/airoboros-13B-GPTQ",
-"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
-"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
-"TheBloke/vicuna-13B-1.1-GPTQ",
-"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
+assert(len(models_to_test) <= 8)
+assert(len(reward_endpoints) >= len(models_to_test))
+num_gpus = len(models_to_test)
+
+# TODO: Handle when you are outbid
+# TODO: Find the number of GPUs, and launch that many models
+# TODO: Wrap this in a for loop to start experiments and collect results for multiple GPUs (maybe use threading)
+# vast 4
+
 
 print(f"Testing Models: {', '.join(models_to_test)}")
 models_no_rep_name = []
@@ -51,7 +88,7 @@ for model_name in models_to_test:
 gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = f'search offers " num_gpus=8 reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
+search_for_instances = f'search offers " num_gpus={num_gpus} reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
@@ -283,12 +320,8 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt2",checker_clients[experiment_id]):
         time.sleep(1)
     
-    print(f"Model {experiment_id} Ready!")
-    # I need to launch this in its own screen
-    base_uuid = str(uuid.uuid4())
-    model_uuid = f"{experiment_id}:MOD:"+base_uuid
-    experiment_uuid = f"{experiment_id}:EXP:"+base_uuid
-
+    print(f"Model {experiment_id} Downloaded!")
+    
     # Start Screen
 
     launch_args = {
@@ -303,11 +336,11 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
         time.sleep(1)
-    print(f"{experiment_id}:Launching Model: {model_uuid}")
+    print(f"{experiment_id}:Launching Model: {experiment_id}")
     while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt3",checker_clients[experiment_id]):
         time.sleep(1)
         
-    print(f"Model {model_uuid} Ready on Port {launch_args['local_port']}!")
+    print(f"Model {experiment_id} Ready on Port {launch_args['local_port']}!")
 
     # 
     # Launch Experiment
@@ -319,10 +352,10 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai'+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_id} {launch_args['reward_endpoint']} {gpu_name}"+"\n")
+    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_id} {launch_args['reward_endpoint']} {gpu_name} '{prompt_formats[experiment_id] if use_fmt_file else ''}'"+"\n")
     time.sleep(0.1)
     
-    print(f"{experiment_id}:Running Experiment: {model_uuid}")
+    print(f"{experiment_id}:Running Experiment: {experiment_id}")
     while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt4",checker_clients[experiment_id]):
         time.sleep(1)
     print(f"Experiment {experiment_id} Done!")

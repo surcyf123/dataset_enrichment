@@ -1,0 +1,4 @@
+[
+    {"TheBloke/Dolphin-Llama-13B-GPTQ" :  "Below is an instruction that describes a task\nInstruction: {prompt}\nAssistant:"},
+    {"TheBloke/minotaur-13B-GPTQ" :  "{prompt}"}
+]
