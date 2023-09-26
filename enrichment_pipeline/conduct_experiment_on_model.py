@@ -6,13 +6,13 @@ experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
 gpu_name = sys.argv[5]
 
-if len(sys.argv > 6):
+if len(sys.argv) > 6:
     prompt_formatting_found = True
     prompt_template = sys.argv[6]
     print("Prompt Template:")
     print(prompt_template)
 
-elif len(sys.argv == 5):
+elif len(sys.argv) == 5:
     prompt_formatting_found = True
     try:
         with open(model_name+"/README.md",'r') as readmefile:
