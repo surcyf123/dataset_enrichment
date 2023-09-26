@@ -1,17 +1,23 @@
-import sys
 import os
+import argparse
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from vllm import EngineArgs, LLMEngine, SamplingParams
-import time
+from vllm import EngineArgs, LLMEngine, SamplingParams 
 from typing import Optional
+import time
 
-# Configuration
-model_directory = sys.argv[1].replace("~", "/root/")
-port = int(sys.argv[2])
-gpu_id = int(sys.argv[3])
-gpu_type = sys.argv[4]
-os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+# Configuration Handling using argparse
+def get_arguments():
+    parser = argparse.ArgumentParser(description="FastAPI server for LLMEngine.")
+    parser.add_argument("model_directory", help="Path to the model directory.")
+    parser.add_argument("port", type=int, help="Port to run the server on.")
+    parser.add_argument("gpu_id", type=int, help="GPU ID to use.")
+    parser.add_argument("gpu_type", choices=["3090", "4090"], help="Type of GPU (e.g., 3090, 4090).")
+    return parser.parse_args()
+
+args = get_arguments()
+model_directory = os.path.expanduser(args.model_directory)
+os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 
 # Default token counts based on GPU type
 DEFAULT_TOKENS = {
@@ -20,8 +26,8 @@ DEFAULT_TOKENS = {
 }
 
 # Initialize the LLMEngine
-engine_args = EngineArgs(model=model_directory, quantization="awq")
-engine = LLMEngine.from_engine_args(engine_args)
+engine_args = EngineArgs(model=model_directory, quantization="awq")  
+engine = LLMEngine.from_engine_args(engine_args) 
 
 app = FastAPI()
 
@@ -45,25 +51,32 @@ class ResponseModel(BaseModel):
 @app.post('/generate', response_model=ResponseModel)
 def generate_text(data: RequestModel):
     time_begin = time.time()
-    num_tokens = data.num_tokens or DEFAULT_TOKENS.get(gpu_type)
+
+    # Use provided num_tokens or fetch default based on GPU type
+    num_tokens = data.num_tokens or DEFAULT_TOKENS.get(args.gpu_type)
     if not num_tokens:
-        raise HTTPException(status_code=400, detail=f"Invalid gpu_type: {gpu_type}")
+        raise HTTPException(status_code=400, detail=f"Invalid gpu_type: {args.gpu_type}")
 
-    sampling_params = SamplingParams(
-        n=data.n,
-        max_tokens=num_tokens,
-        temperature=data.temperature,
-        top_p=data.top_p,
-        top_k=data.top_k,
-        presence_penalty=data.presence_penalty,
-        frequency_penalty=data.frequency_penalty,
-        best_of=data.best_of,
-        use_beam_search=data.use_beam_search
-    )
+    # Initialize sampling_params
+    sampling_params = {
+        "n": data.n,
+        "max_tokens": num_tokens,
+        "temperature": data.temperature,
+        "top_p": data.top_p,
+        "top_k": data.top_k,
+        "presence_penalty": data.presence_penalty,
+        "frequency_penalty": data.frequency_penalty,
+        "use_beam_search": data.use_beam_search
+    }
+    if data.best_of:
+        sampling_params["best_of"] = data.best_of
 
+    # Adding request to the engine
     request_id = "api_request"
-    engine.add_request(request_id, data.prompt, sampling_params)
+    engine.add_request(request_id, data.prompt, SamplingParams(**sampling_params)) 
 
+    # Fetching the response from the engine
+    responses = []
     finished = False
     while not finished:
         request_outputs = engine.step()
@@ -72,6 +85,7 @@ def generate_text(data: RequestModel):
                 finished = True
                 responses = [output.text for output in request_output.outputs]
 
+    # Calculate tokens_per_second
     time_end = time.time()
     t_per_s = (num_tokens * len(responses)) / (time_end - time_begin)
 
@@ -79,4 +93,5 @@ def generate_text(data: RequestModel):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
+
