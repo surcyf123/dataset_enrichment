@@ -33,14 +33,14 @@ app = FastAPI()
 
 class RequestModel(BaseModel):
     prompt: str
-    n: int = 1
-    temperature: float = 0.9
-    top_p: float = 1.0
-    top_k: int = 80
-    presence_penalty: float = 1.0
-    frequency_penalty: float = 1.0
+    n: Optional[int] = None
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
     best_of: Optional[int] = None
-    use_beam_search: bool = False
+    use_beam_search: Optional[bool] = None
     num_tokens: Optional[int] = None
 
 class ResponseModel(BaseModel):
@@ -52,26 +52,23 @@ class ResponseModel(BaseModel):
 def generate_text(data: RequestModel):
     time_begin = time.time()
 
-    # Use provided num_tokens or fetch default based on GPU type
     num_tokens = data.num_tokens or DEFAULT_TOKENS.get(args.gpu_type)
     if not num_tokens:
         raise HTTPException(status_code=400, detail=f"Invalid gpu_type: {args.gpu_type}")
 
-    # Initialize sampling_params
     sampling_params = {
-        "n": data.n,
+        "n": data.n or 1,
         "max_tokens": num_tokens,
-        "temperature": data.temperature,
-        "top_p": data.top_p,
-        "top_k": data.top_k,
-        "presence_penalty": data.presence_penalty,
-        "frequency_penalty": data.frequency_penalty,
-        "use_beam_search": data.use_beam_search
+        "temperature": data.temperature or 0.9,
+        "top_p": data.top_p or 1.0,
+        "top_k": data.top_k or 1000,
+        "presence_penalty": data.presence_penalty or 1.0,
+        "frequency_penalty": data.frequency_penalty or 1.0,
+        "use_beam_search": data.use_beam_search or False
     }
     if data.best_of:
         sampling_params["best_of"] = data.best_of
 
-    # Adding request to the engine
     request_id = "api_request"
     engine.add_request(request_id, data.prompt, SamplingParams(**sampling_params)) 
 
