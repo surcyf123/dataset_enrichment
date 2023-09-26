@@ -5,6 +5,23 @@ local_port = sys.argv[2]
 experiment_id = sys.argv[3]
 reward_endpoint = sys.argv[4]
 gpu_name = sys.argv[5]
+
+if len(sys.argv > 6):
+    prompt_formatting_found = True
+    prompt_template = sys.argv[6]
+    print("Prompt Template:")
+    print(prompt_template)
+
+elif len(sys.argv == 5):
+    prompt_formatting_found = True
+    try:
+        with open(model_name+"/README.md",'r') as readmefile:
+            content = readmefile.read()
+        prompt_template = content.split("<!-- prompt-template start -->")[1].split("<!-- prompt-template end -->")[0].split("```")[1].rstrip().lstrip()
+    except:
+        print("No valid prompt formatting found.")
+        prompt_formatting_found = False
+
 # %%
 
 import requests
@@ -23,14 +40,7 @@ from tqdm import tqdm
 
 
 
-prompt_formatting_found = True
-try:
-    with open(model_name+"/README.md",'r') as readmefile:
-        content = readmefile.read()
-    prompt_template = content.split("<!-- prompt-template start -->")[1].split("<!-- prompt-template end -->")[0].split("```")[1].rstrip().lstrip()
-except:
-    print("No valid prompt formatting found.")
-    prompt_formatting_found = False
+
 
 hyperparameter_searches = {
     "num_tokens" : [200],
