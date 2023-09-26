@@ -7,7 +7,6 @@ from typing import Optional
 import time
 import threading
 
-
 # Configuration Handling using argparse
 def get_arguments():
     parser = argparse.ArgumentParser(description="FastAPI server for LLMEngine.")
@@ -31,8 +30,6 @@ DEFAULT_TOKENS = {
 engine_args = EngineArgs(model=model_directory, quantization="awq")  
 engine = LLMEngine.from_engine_args(engine_args) 
 
-app = FastAPI()
-
 class RequestModel(BaseModel):
     prompt: str
     n: Optional[int] = None
@@ -44,11 +41,6 @@ class RequestModel(BaseModel):
     best_of: Optional[int] = None
     use_beam_search: Optional[bool] = None
     num_tokens: Optional[int] = None
-
-class ResponseModel(BaseModel):
-    response: list
-    model: str
-    tokens_per_second: float
 
 def process_request(data: RequestModel, result_container: dict):
     time_begin = time.time()
@@ -92,7 +84,8 @@ def process_request(data: RequestModel, result_container: dict):
         "tokens_per_second": t_per_s
     }
 
-@app.post('/generate', response_model=ResponseModel)
+app = FastAPI()
+@app.post('/generate')
 async def generate_text(data: RequestModel):
     result_container = {}
     request_thread = threading.Thread(target=process_request, args=(data, result_container))
