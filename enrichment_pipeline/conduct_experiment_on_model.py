@@ -111,11 +111,12 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
         
     
 # %%
-
+from datetime import datetime
+timestamp_str = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
 # -------------------------------- with formatting ---------------------------#
 if prompt_formatting_found:
     for num_tokens in hyperparameter_searches["num_tokens"]:
-        with open(f'results/{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
+        with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
             fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             csv_writer.writeheader()
@@ -129,7 +130,7 @@ if prompt_formatting_found:
                 for top_p in hyperparameter_searches["top_p"]:
                     for top_k in hyperparameter_searches["top_k"]:
                         for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                            with open(f'results/{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
+                            with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
                                 retries = 0
                                 while True:
                                     try:
@@ -173,7 +174,7 @@ if prompt_formatting_found:
     # Writing the stats
     import pandas as pd
     for num_tokens in hyperparameter_searches["num_tokens"]:       
-        with open(f'results/{num_tokens}-{model_name}-fmt.txt', 'w') as f:
+        with open(f'/root/results/{experiment_id}/performance_summaries/{timestamp_str}-{num_tokens}-{model_name}-fmt.txt', 'w') as f:
             df = pd.read_csv(f'results/{num_tokens}-{model_name}-fmt.csv')
             f.write(f'gpu_name {gpu_name}\n')
             
@@ -215,12 +216,12 @@ if prompt_formatting_found:
 
 
 
-
+# Non Formatted -----
 # Initialize CSV file and writer    
 
 # Write the header to the CSV file
 for num_tokens in hyperparameter_searches["num_tokens"]:
-    with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
+    with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
         fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         csv_writer.writeheader()
@@ -234,7 +235,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
             for top_p in hyperparameter_searches["top_p"]:
                 for top_k in hyperparameter_searches["top_k"]:
                     for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                        with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
+                        with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
                             retries = 0
                             while True:
                                 try:
@@ -276,7 +277,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
 # Writing the stats
 import pandas as pd
 for num_tokens in hyperparameter_searches["num_tokens"]:       
-    with open(f'results/{num_tokens}-{model_name}.txt', 'w') as f:
+    with open(f'/root/results/{experiment_id}/performance_summaries/{timestamp_str}-{num_tokens}-{model_name}.txt', 'w') as f:
         df = pd.read_csv(f'results/{num_tokens}-{model_name}.csv')
         f.write(f'gpu_name {gpu_name}\n')
         
