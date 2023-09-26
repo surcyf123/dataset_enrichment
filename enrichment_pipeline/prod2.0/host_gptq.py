@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from vllm import EngineArgs, LLMEngine, SamplingParams 
 from typing import Optional
 import time
+import threading
+
 
 # Configuration Handling using argparse
 def get_arguments():
@@ -48,8 +50,7 @@ class ResponseModel(BaseModel):
     model: str
     tokens_per_second: float
 
-@app.post('/generate', response_model=ResponseModel)
-def generate_text(data: RequestModel):
+def process_request(data: RequestModel, result_container: dict):
     time_begin = time.time()
 
     num_tokens = data.num_tokens or DEFAULT_TOKENS.get(args.gpu_type)
@@ -85,8 +86,23 @@ def generate_text(data: RequestModel):
     # Calculate tokens_per_second
     time_end = time.time()
     t_per_s = (num_tokens * len(responses)) / (time_end - time_begin)
+    result_container["result"] = {
+        "response": responses,
+        "model": model_directory,
+        "tokens_per_second": t_per_s
+    }
 
-    return {"response": responses, "model": model_directory, "tokens_per_second": t_per_s}
+@app.post('/generate', response_model=ResponseModel)
+async def generate_text(data: RequestModel):
+    result_container = {}
+    request_thread = threading.Thread(target=process_request, args=(data, result_container))
+    request_thread.start()
+    request_thread.join()  # This waits for the thread to complete; if you want to continue immediately, remove this.
+
+    if "result" in result_container:
+        return result_container["result"]
+    else:
+        raise HTTPException(status_code=500, detail="Error processing the request")
 
 if __name__ == "__main__":
     import uvicorn
