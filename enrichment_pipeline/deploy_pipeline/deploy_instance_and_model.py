@@ -12,7 +12,7 @@ import uuid
 import threading
 from typing import Dict
 import sys
-active_branch = "ethan/command-line-prompt-formatting"
+active_branch = "ethan/change-git-to-s3"
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 
@@ -230,7 +230,7 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","touch /root/ckpts/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum boto3',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","touch /root/ckpts/ckpt1"]
 
 # commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "git clone https://github.com/chu-tianxiang/vllm-gptq.git", "cd vllm-gptq", "pip3 install -e .","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
@@ -309,7 +309,7 @@ print(f"Shells and Clients and Checkers Initialized: {', '.join(str(a) for a in 
 
 def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells,checker_clients):
     # Download Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"touch /root/ckpts/{experiment_id}_ckpt2"]
+    commands = [f"mkdir -p /root/results/{experiment_id}",f"mkdir -p /root/results/{experiment_id}/performance_summaries",f"mkdir -p /root/results/{experiment_id}/raw_results","cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"touch /root/ckpts/{experiment_id}_ckpt2"]
     # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
@@ -358,27 +358,16 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id}:Running Experiment: {experiment_id}")
     while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt4",checker_clients[experiment_id]):
         time.sleep(1)
-    print(f"Experiment {experiment_id} Done!")
+    print(f"Experiment {experiment_id} Done! Pushing Results...")
 
     # Get the experiment averages
     
     
 
-    # Upload Results to Git
-    
-    
-    experiment_shells[experiment_id].send('chmod 600 ~/.ssh/autovastai && eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai' + "\n")
-    time.sleep(3)
 
     
-    commands = ["cd /root/quantized_reward_results",f"mv /root/dataset_enrichment/enrichment_pipeline/results/*{chosen_experiment_model_name}* /root/quantized_reward_results/","cd /root/quantized_reward_results","git config --global user.email 'deckenball@gmail.com'","git config --global user.name 'AutoVastAI'","git pull","git add .",f"git commit -m 'Added Experiment Results for {chosen_experiment_model_name}.'","git push origin main"]
-    # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
-    commandstr = " && ".join(commands)
-    experiment_shells[experiment_id].send(commandstr+"\n")
-    while not experiment_shells[experiment_id].recv_ready():
-        time.sleep(1)
     
-    print("Results Pushed")
+    # print(f"All Results Pushed for Experiment: {experiment_id}")
 
     # Close both screens for the model, and for the experiment running
     

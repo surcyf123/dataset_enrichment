@@ -22,6 +22,8 @@ elif len(sys.argv) == 5:
         print("No valid prompt formatting found.")
         prompt_formatting_found = False
 
+
+
 # %%
 
 import requests
@@ -111,11 +113,12 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
         
     
 # %%
-
+from datetime import datetime
+timestamp_str = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
 # -------------------------------- with formatting ---------------------------#
 if prompt_formatting_found:
     for num_tokens in hyperparameter_searches["num_tokens"]:
-        with open(f'results/{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
+        with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
             fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             csv_writer.writeheader()
@@ -129,7 +132,7 @@ if prompt_formatting_found:
                 for top_p in hyperparameter_searches["top_p"]:
                     for top_k in hyperparameter_searches["top_k"]:
                         for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                            with open(f'results/{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
+                            with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
                                 retries = 0
                                 while True:
                                     try:
@@ -173,8 +176,8 @@ if prompt_formatting_found:
     # Writing the stats
     import pandas as pd
     for num_tokens in hyperparameter_searches["num_tokens"]:       
-        with open(f'results/{num_tokens}-{model_name}-fmt.txt', 'w') as f:
-            df = pd.read_csv(f'results/{num_tokens}-{model_name}-fmt.csv')
+        with open(f'/root/results/{experiment_id}/performance_summaries/{timestamp_str}-{num_tokens}-{model_name}-fmt.txt', 'w') as f:
+            df = pd.read_csv(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv')
             f.write(f'gpu_name {gpu_name}\n')
             
             mean_duration = df['duration'].mean()
@@ -215,12 +218,12 @@ if prompt_formatting_found:
 
 
 
-
+# Non Formatted -----
 # Initialize CSV file and writer    
 
 # Write the header to the CSV file
 for num_tokens in hyperparameter_searches["num_tokens"]:
-    with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
+    with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
         fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         csv_writer.writeheader()
@@ -234,7 +237,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
             for top_p in hyperparameter_searches["top_p"]:
                 for top_k in hyperparameter_searches["top_k"]:
                     for repetition_penalty in hyperparameter_searches["repetition_penalty"]:
-                        with open(f'results/{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
+                        with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
                             retries = 0
                             while True:
                                 try:
@@ -276,8 +279,8 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
 # Writing the stats
 import pandas as pd
 for num_tokens in hyperparameter_searches["num_tokens"]:       
-    with open(f'results/{num_tokens}-{model_name}.txt', 'w') as f:
-        df = pd.read_csv(f'results/{num_tokens}-{model_name}.csv')
+    with open(f'/root/results/{experiment_id}/performance_summaries/{timestamp_str}-{num_tokens}-{model_name}.txt', 'w') as f:
+        df = pd.read_csv(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv')
         f.write(f'gpu_name {gpu_name}\n')
         
         mean_duration = df['duration'].mean()
@@ -316,8 +319,35 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
         pass_mean_reciprocate_reward_norm = df[df['total_reward'] != 0]['reciprocate_norm'].mean()
         f.write(f'reciprocate_reward_mean_norm {pass_mean_reciprocate_reward}\n')                        
     
+# code for S3
+experiment_id = sys.argv[3]
+import boto3
+from pathlib import Path
+# Initialize the S3 client
+s3 = boto3.client('s3',
+                aws_access_key_id='AKIAX5ZWWZTUO6ZMIJ4M',
+                aws_secret_access_key='o/vp3oMlE6b1xpzXaX2UBmk0DcZr1mZGs042qGqW')
 
-  
+# Your bucket name and file details
+BUCKET_NAME = 'quantized-language-model-results'
+
+
+folder_path = Path(f'/root/results/{experiment_id}/performance_summaries')
+for file_path in folder_path.rglob('*'):
+    if file_path.is_file():
+        file_name = file_path.name
+        s3_key = f"performance_summaries/{file_name}"
+        s3.upload_file(str(file_path), BUCKET_NAME, s3_key)
+        print(f"Uploaded {str(file_path)} to s3://{BUCKET_NAME}/{s3_key}")
+
+folder_path = Path(f'/root/results/{experiment_id}/raw_results')
+for file_path in folder_path.rglob('*'):
+    if file_path.is_file():
+        file_name = file_path.name
+        s3_key = f"raw_results/{file_name}"
+        s3.upload_file(str(file_path), BUCKET_NAME, s3_key)
+        print(f"Uploaded {str(file_path)} to s3://{BUCKET_NAME}/{s3_key}")
+
     
     
 with open(f'/root/ckpts/{experiment_id}_ckpt4', 'w') as fp:
