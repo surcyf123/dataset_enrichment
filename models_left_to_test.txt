@@ -1,5 +1,6 @@
 # cd dataset_enrichment/enrichment_pipeline/deploy_pipeline/ && conda activate pytorch && python3 deploy_instance_and_model.py
 
+# cd dataset_enrichment/enrichment_pipeline/deploy_pipeline/ && conda activate deploy && python3 deploy_instance_and_model.py 1
 
 models_left_to_test = [
 "CAMEL-13B-Combined-Data-GPTQ",
