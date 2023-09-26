@@ -309,7 +309,7 @@ print(f"Shells and Clients and Checkers Initialized: {', '.join(str(a) for a in 
 
 def download_model_run_experiment_upload_results(chosen_experiment_model_name,chosen_experiment_model_port,experiment_id,model_clients,model_shells,experiment_clients,experiment_shells,checker_clients):
     # Download Model
-    commands = [f"mkdir /root/results/{experiment_id}",f"mkdir /root/results/{experiment_id}/performance_summaries",f"mkdir /root/results/{experiment_id}/raw_results","cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"touch /root/ckpts/{experiment_id}_ckpt2"]
+    commands = [f"mkdir -p /root/results/{experiment_id}",f"mkdir -p /root/results/{experiment_id}/performance_summaries",f"mkdir -p /root/results/{experiment_id}/raw_results","cd /root/dataset_enrichment/enrichment_pipeline",f"git lfs clone https://huggingface.co/TheBloke/{chosen_experiment_model_name}",f"touch /root/ckpts/{experiment_id}_ckpt2"]
     # commands = ['cat /root/dataset_enrichment/credentials/ckpt2']
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
