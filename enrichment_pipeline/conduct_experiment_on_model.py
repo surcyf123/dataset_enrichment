@@ -310,5 +310,5 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
   
     
     
-print("Experiment Complete")                    
-                    
+with open(f'/root/ckpts/{experiment_id}_ckpt4', 'w') as fp:
+    pass

@@ -2,7 +2,7 @@
 
 
 models_left_to_test = [
-
+"CAMEL-13B-Combined-Data-GPTQ",
 "TheBloke/Baichuan2-13B-Chat-GPTQ",
 "TheBloke/Vicuna-13B-CoT-GPTQ",
 "TheBloke/chronos-hermes-13B-GPTQ",
