@@ -1,12 +1,21 @@
 import os
 import argparse
+import time
+import threading
+import queue
+import asyncio
+import uuid
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from vllm import EngineArgs, LLMEngine, SamplingParams 
 from typing import Optional
-import time
-import threading
 
+# Constants
+DEFAULT_TOKENS = {
+    "3090": 130,
+    "4090": 170
+}
+TIMEOUT = 60
 
 # Configuration Handling using argparse
 def get_arguments():
@@ -21,18 +30,11 @@ args = get_arguments()
 model_directory = os.path.expanduser(args.model_directory)
 os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 
-# Default token counts based on GPU type
-DEFAULT_TOKENS = {
-    "3090": 130,
-    "4090": 170
-}
-
 # Initialize the LLMEngine
 engine_args = EngineArgs(model=model_directory, quantization="awq")  
 engine = LLMEngine.from_engine_args(engine_args) 
 
-app = FastAPI()
-
+# FastAPI Models
 class RequestModel(BaseModel):
     prompt: str
     n: Optional[int] = None
@@ -50,16 +52,11 @@ class ResponseModel(BaseModel):
     model: str
     tokens_per_second: float
 
-def process_request(data: RequestModel, result_container: dict):
-    time_begin = time.time()
-
-    num_tokens = data.num_tokens or DEFAULT_TOKENS.get(args.gpu_type)
-    if not num_tokens:
-        raise HTTPException(status_code=400, detail=f"Invalid gpu_type: {args.gpu_type}")
-
-    sampling_params = {
+# Helper functions
+def get_sampling_params(data: RequestModel):
+    return {
         "n": data.n or 1,
-        "max_tokens": num_tokens,
+        "max_tokens": data.num_tokens or DEFAULT_TOKENS.get(args.gpu_type),
         "temperature": data.temperature or 0.9,
         "top_p": data.top_p or 1.0,
         "top_k": data.top_k or 1000,
@@ -67,44 +64,54 @@ def process_request(data: RequestModel, result_container: dict):
         "frequency_penalty": data.frequency_penalty or 1.0,
         "use_beam_search": data.use_beam_search or False
     }
-    if data.best_of:
-        sampling_params["best_of"] = data.best_of
 
-    request_id = "api_request"
-    engine.add_request(request_id, data.prompt, SamplingParams(**sampling_params)) 
+# LLMEngine Manager Thread
+request_queue = queue.Queue()
+result_dict = {}
 
-    # Fetching the response from the engine
-    responses = []
-    finished = False
-    while not finished:
-        request_outputs = engine.step()
-        for request_output in request_outputs:
-            if request_output.request_id == request_id and request_output.finished:
-                finished = True
-                responses = [output.text for output in request_output.outputs]
+def llm_engine_manager():
+    while True:
+        request_id, data = request_queue.get()
+        sampling_params = get_sampling_params(data)
+        engine.add_request(request_id, data.prompt, SamplingParams(**sampling_params))
+        
+        responses = []
+        finished = False
+        while not finished:
+            request_outputs = engine.step()
+            for request_output in request_outputs:
+                if request_output.request_id == request_id and request_output.finished:
+                    finished = True
+                    responses = [output.text for output in request_output.outputs]
+        result_dict[request_id] = responses
 
-    # Calculate tokens_per_second
-    time_end = time.time()
-    t_per_s = (num_tokens * len(responses)) / (time_end - time_begin)
-    result_container["result"] = {
-        "response": responses,
-        "model": model_directory,
-        "tokens_per_second": t_per_s
-    }
+threading.Thread(target=llm_engine_manager, daemon=True).start()
 
+app = FastAPI()
 @app.post('/generate', response_model=ResponseModel)
 async def generate_text(data: RequestModel):
-    result_container = {}
-    request_thread = threading.Thread(target=process_request, args=(data, result_container))
-    request_thread.start()
-    request_thread.join()  # This waits for the thread to complete; if you want to continue immediately, remove this.
+    start_time = time.time()
+    
+    request_id = str(uuid.uuid4())
+    request_queue.put((request_id, data))
 
-    if "result" in result_container:
-        return result_container["result"]
+    while request_id not in result_dict and time.time() - start_time < TIMEOUT:
+        await asyncio.sleep(0.05)
+
+    if request_id in result_dict:
+        end_time = time.time()
+        responses = result_dict.pop(request_id)
+        num_tokens = data.num_tokens or DEFAULT_TOKENS.get(args.gpu_type)
+        t_per_s = (num_tokens * len(responses)) / (end_time - start_time)
+        
+        return {
+            "response": responses,
+            "model": model_directory,
+            "tokens_per_second": t_per_s
+        }
     else:
         raise HTTPException(status_code=500, detail="Error processing the request")
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=args.port)
-
