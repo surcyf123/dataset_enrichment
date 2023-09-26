@@ -175,7 +175,7 @@ if prompt_formatting_found:
     import pandas as pd
     for num_tokens in hyperparameter_searches["num_tokens"]:       
         with open(f'/root/results/{experiment_id}/performance_summaries/{timestamp_str}-{num_tokens}-{model_name}-fmt.txt', 'w') as f:
-            df = pd.read_csv(f'results/{num_tokens}-{model_name}-fmt.csv')
+            df = pd.read_csv(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv')
             f.write(f'gpu_name {gpu_name}\n')
             
             mean_duration = df['duration'].mean()
@@ -278,7 +278,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
 import pandas as pd
 for num_tokens in hyperparameter_searches["num_tokens"]:       
     with open(f'/root/results/{experiment_id}/performance_summaries/{timestamp_str}-{num_tokens}-{model_name}.txt', 'w') as f:
-        df = pd.read_csv(f'results/{num_tokens}-{model_name}.csv')
+        df = pd.read_csv(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv')
         f.write(f'gpu_name {gpu_name}\n')
         
         mean_duration = df['duration'].mean()
