@@ -22,6 +22,19 @@ elif len(sys.argv) == 5:
         print("No valid prompt formatting found.")
         prompt_formatting_found = False
 
+
+# code for S3
+import boto3
+from pathlib import Path
+# Initialize the S3 client
+s3 = boto3.client('s3',
+                aws_access_key_id='AKIAX5ZWWZTUO6ZMIJ4M',
+                aws_secret_access_key='o/vp3oMlE6b1xpzXaX2UBmk0DcZr1mZGs042qGqW')
+
+# Your bucket name and file details
+BUCKET_NAME = 'quantized-language-model-results'
+
+
 # %%
 
 import requests
@@ -318,7 +331,24 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
         f.write(f'reciprocate_reward_mean_norm {pass_mean_reciprocate_reward}\n')                        
     
 
-  
+
+
+folder_path = Path(f'/root/results/{experiment_id}/performance_summaries')
+for file_path in folder_path.rglob('*'):
+    if file_path.is_file():
+        file_name = file_path.split("/")[-1]
+        s3_key = f"performance_summaries/{file_name}"
+        s3.upload_file(file_path, BUCKET_NAME, s3_key)
+        print(f"Uploaded {file_path} to s3://{BUCKET_NAME}/{s3_key}")
+
+folder_path = Path(f'/root/results/{experiment_id}/raw_results')
+for file_path in folder_path.rglob('*'):
+    if file_path.is_file():
+        file_name = file_path.split("/")[-1]
+        s3_key = f"raw_results/{file_name}"
+        s3.upload_file(file_path, BUCKET_NAME, s3_key)
+        print(f"Uploaded {file_path} to s3://{BUCKET_NAME}/{s3_key}")
+
     
     
 with open(f'/root/ckpts/{experiment_id}_ckpt4', 'w') as fp:

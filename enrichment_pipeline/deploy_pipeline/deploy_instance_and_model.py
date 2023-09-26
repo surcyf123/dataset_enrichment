@@ -358,42 +358,16 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     print(f"{experiment_id}:Running Experiment: {experiment_id}")
     while "thefileishereandthisisnotafluke" not in check_existence_of_filename(f"{experiment_id}_ckpt4",checker_clients[experiment_id]):
         time.sleep(1)
-    print(f"Experiment {experiment_id} Done!")
+    print(f"Experiment {experiment_id} Done! Pushing Results...")
 
     # Get the experiment averages
     
     
 
-    # Upload Results to S3
-    
-    import boto3
-    from pathlib import Path
-    # Initialize the S3 client
-    s3 = boto3.client('s3',
-                    aws_access_key_id='AKIAX5ZWWZTUO6ZMIJ4M',
-                    aws_secret_access_key='o/vp3oMlE6b1xpzXaX2UBmk0DcZr1mZGs042qGqW')
 
-    # Your bucket name and file details
-    BUCKET_NAME = 'quantized-language-model-results'
-    
-    folder_path = Path(f'/root/results/{experiment_id}/performance_summaries')
-    for file_path in folder_path.rglob('*'):
-        if file_path.is_file():
-            file_name = file_path.split("/")[-1]
-            s3_key = f"performance_summaries/{file_name}"
-            s3.upload_file(file_path, BUCKET_NAME, s3_key)
-            print(f"Uploaded {file_path} to s3://{BUCKET_NAME}/{s3_key}")
-    
-    folder_path = Path(f'/root/results/{experiment_id}/raw_results')
-    for file_path in folder_path.rglob('*'):
-        if file_path.is_file():
-            file_name = file_path.split("/")[-1]
-            s3_key = f"raw_results/{file_name}"
-            s3.upload_file(file_path, BUCKET_NAME, s3_key)
-            print(f"Uploaded {file_path} to s3://{BUCKET_NAME}/{s3_key}")
     
     
-    print(f"All Results Pushed for Experiment: {experiment_id}")
+    # print(f"All Results Pushed for Experiment: {experiment_id}")
 
     # Close both screens for the model, and for the experiment running
     
