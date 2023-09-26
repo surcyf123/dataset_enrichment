@@ -5,7 +5,7 @@ prompt = ["How are you?"]
 sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
 
 # Initialize the vLLM engine with your locally installed AWQ model
-llm = LLM(model="/root/vicuna-7b-v1.5-awq", quantization="awq")
+llm = LLM(model="/root/Mythical-Destroyer-V2-L2-13B-AWQ", quantization="awq")
 
 # Generate the output
 outputs = llm.generate(prompt, sampling_params)
