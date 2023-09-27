@@ -12,14 +12,13 @@ from typing import Optional
 args = None
 VALID_GPU_TYPES = ["3090", "4090"]
 DEFAULT_TOKENS = {
-    "3090": 130,
-    "4090": 170
+    "3090": 160,
+    "4090": 160,
 }
 MODEL_CHOICES = {
 "models8x1":["Huginn-13B-v4-AWQ", "UndiMix-v2-13B-AWQ", "Huginn-13B-v4.5-AWQ", "Huginn-v3-13B-AWQ", "Stheno-Inverted-L2-13B-AWQ", "Speechless-Llama2-Hermes-Orca-Platypus-WizardLM-13B-AWQ", "Speechless-Llama2-13B-AWQ", "Mythical-Destroyer-V2-L2-13B-AWQ"],
 "models8x2":["Mythical-Destroyer-L2-13B-AWQ", "MythoBoros-13B-AWQ", "StableBeluga-13B-AWQ", "CodeUp-Llama-2-13B-Chat-HF-AWQ", "Baize-v2-13B-SuperHOT-8K-AWQ", "orca_mini_v3_13B-AWQ", "Chronoboros-Grad-L2-13B-AWQ", "Project-Baize-v2-13B-AWQ"],
 "models8x3":["PuddleJumper-13B-AWQ", "Luban-13B-AWQ", "LosslessMegaCoder-Llama2-13B-Mini-AWQ", "Luban-13B-AWQ", "OpenOrca-Platypus2-13B-AWQ", "Llama2-13B-MegaCode2-OASST-AWQ", "Chronos-Hermes-13B-SuperHOT-8K-AWQ", "OpenOrcaxOpenChat-Preview2-13B-AWQ"],
-
 }
 
 def start_model_server(model, port, gpu_id, gpu_type):
@@ -43,7 +42,7 @@ class RequestModel(BaseModel):
     presence_penalty: Optional[float] = None
     frequency_penalty: Optional[float] = None
     best_of: Optional[int] = None
-    use_beam_search: Optional[bool] = None
+    use_beam_search: Optional[bool] = False
     num_tokens: Optional[int] = None
 
 async def process_request(data: RequestModel, gpu_type, model, engine):
@@ -52,17 +51,14 @@ async def process_request(data: RequestModel, gpu_type, model, engine):
         raise HTTPException(status_code=400, detail=f"Invalid gpu_type: {gpu_type}")
 
     sampling_params = {
-        "n": data.n or 1,
+        "n": data.n or 16,
         "max_tokens": num_tokens,
         "temperature": data.temperature or 0.9,
         "top_p": data.top_p or 1.0,
         "top_k": data.top_k or 1000,
         "presence_penalty": data.presence_penalty or 1.0,
         "frequency_penalty": data.frequency_penalty or 1.0,
-        "use_beam_search": data.use_beam_search or False
     }
-    if data.best_of:
-        sampling_params["best_of"] = data.best_of
 
     request_id = "api_request"
     engine.add_request(request_id, data.prompt, SamplingParams(**sampling_params)) 
