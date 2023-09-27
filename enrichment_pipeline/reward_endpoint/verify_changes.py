@@ -2,6 +2,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Auto
 import torch
 from typing import List, Tuple
 from abc import abstractmethod
+import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 class BaseRewardModel:
     sqrt_of_2: torch.FloatTensor
@@ -139,7 +141,6 @@ class OpenAssistantRewardModelV2(BaseRewardModel):
             inputs = self.tokenizer(prompts, completions, padding=True, truncation=False, max_length=512, return_tensors='pt').to(self.device)
             return self.model(**inputs).logits.squeeze(1)
 
-
 class DirectPreferenceRewardModelV1(BaseRewardModel):
     reward_model_name: str = "cerebras/btlm-3b-8k-base"
 
@@ -231,6 +232,15 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             # NaNs can possibly arise through log(0)=-inf, replace with suitably small logits.
             if torch.isnan(reward) or torch.isinf(reward):
                 return -11.0  # exp(-11)=1.67e-5 < 2e-5=1/50257 (typical vocab size)
+            print("\n[DirectPreferenceRewardModelV1 Debugging]")
+            # print("Combined input_ids:", combined)
+            # print("Prompt part:", prompt_part)
+            # print("Labels:", labels)
+            if logits is not None:
+                print("Logits shape:", logits.shape)
+            if per_token_logps is not None:
+                print("Per token logps shape:", per_token_logps.shape)
+            print("Reward:", reward)
             return reward.item()
 
     def get_rewards(
@@ -243,7 +253,6 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             ],
             dtype=torch.float32,
         ).to(self.device)
-        bt.logging.trace(f"DirectPreferenceRewardModel | rewards: {rewards.tolist()}")
         return rewards
 
     def logit_penalty(
@@ -275,7 +284,9 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
         super().__init__()
         self.mean, self.var = torch.tensor([-11.78]).to(self.device), torch.tensor([4.36]).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModelV2.reward_model_name)
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModelV2.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
+        self.model.resize_token_embeddings(len(self.tokenizer))
 
     def reward_single(self, prompt: str, completion: str) -> float:
         with torch.no_grad():
@@ -301,43 +312,66 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
 
     def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         with torch.no_grad():
-            combined = self.tokenizer([prompt]*len(completions), completions, padding=True, truncation=True, return_tensors="pt").to(self.device)
-            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+            # Step 1: Prepare individual inputs for each completion
+            input_ids_list = []
+            for completion in completions:
+                combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
+                prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+                
+                if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
+                    input_ids_list.append(None)  # Append None for invalid completions
+                    continue
+
+                combined = combined[:self.tokenizer.model_max_length]
+                input_ids_list.append(combined)
             
-            if len(prompt_part) >= self.tokenizer.model_max_length:
-                return torch.full((len(completions),), -11).to(dtype=torch.float16)
+            # Remove None entries and create a tensor
+            valid_input_ids = [ids for ids in input_ids_list if ids is not None]
+            if not valid_input_ids:
+                # All completions are invalid
+                return torch.full((len(completions),), -11.).to(dtype=torch.float16)
 
-            labels = combined.input_ids.clone()
-            labels[:, :len(prompt_part)] = 0
-            labels = labels[:, 1:]
-
-            logits = self.model(**combined).logits[:, :-1, :]
+            # Step 2: Accumulate into one batch
+            max_length = max([len(ids) for ids in valid_input_ids])
+            padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), 0).to(self.device)], 0) for ids in valid_input_ids])
+            
+            # Step 3: Forward this batch through the model
+            logits = self.model(padded_input_ids).logits[:, :-1, :]
             logits = logits.log_softmax(-1)
-            per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(2)).squeeze(2)
-            mask = (labels != 0)
             
-            counts = mask.sum(dim=1)
-            sums = (per_token_logps * mask).sum(dim=1)
-            rewards = sums / counts.to(dtype=torch.float16)
+            # Step 4: Calculate the rewards for each completion
+            rewards = []
+            for idx, combined in enumerate(input_ids_list):
+                if combined is None:
+                    rewards.append(-11.)
+                    continue
+                labels = combined[1:]
+                per_token_logps = torch.gather(logits[idx], dim=1, index=labels.unsqueeze(1)).squeeze(1)
+                reward = per_token_logps.mean()
+                if torch.isnan(reward) or torch.isinf(reward):
+                    rewards.append(-11.)
+                else:
+                    rewards.append(reward.item())
             
-            invalid_rewards = torch.isnan(rewards) | torch.isinf(rewards)
-            rewards[invalid_rewards] = -11.0
-            
-            return rewards
+            return torch.tensor(rewards, dtype=torch.float16).to(self.device)
 
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         return self.reward_batch(prompt, completions)
 
 
-def test_model(model_v1, model_v2, prompt: str, completions: List[str]):
-    rewards_v1 = model_v1.get_rewards(prompt, completions)
-    rewards_v2 = model_v2.get_rewards(prompt, completions).to(rewards_v1.device)
+def test_model(old_model, new_model, prompt: str, completions: List[str]):
+    try:
+        old_rewards = old_model.get_rewards(prompt, completions, "dummy_name")
+    except TypeError:
+        old_rewards = old_model.get_rewards(prompt, completions)
 
-    print(f"{model_v1.name} Rewards: {rewards_v1}")
-    print(f"{model_v2.name} Rewards: {rewards_v2}")
+    new_rewards = new_model.get_rewards(prompt, completions)
 
-    difference = torch.abs(rewards_v1 - rewards_v2)
-    print(f"Difference between {model_v1.name} and {model_v2.name} rewards: {difference}")
+    print(f"Old Model Rewards: {old_rewards}")
+    print(f"New Model Rewards: {new_rewards}")
+
+    difference = torch.abs(old_rewards - new_rewards)
+    print(f"Difference between old and new rewards: {difference}")
 
     return difference
 
@@ -364,17 +398,17 @@ def main():
     # model_v2_reciprocate = ReciprocateRewardModelV2(device=devices[3])
     # test_model(model_v1_reciprocate, model_v2_reciprocate, prompt, completions)
 
-    # Test OpenAssistantRewardModel versions
-    print("\nTesting OpenAssistantRewardModel versions...")
-    model_v1_open_assistant = OpenAssistantRewardModelV1(device=devices[2])
-    model_v2_open_assistant = OpenAssistantRewardModelV2(device=devices[3])
-    test_model(model_v1_open_assistant, model_v2_open_assistant, prompt, completions)
+    # # Test OpenAssistantRewardModel versions
+    # print("\nTesting OpenAssistantRewardModel versions...")
+    # model_v1_open_assistant = OpenAssistantRewardModelV1(device=devices[2])
+    # model_v2_open_assistant = OpenAssistantRewardModelV2(device=devices[3])
+    # test_model(model_v1_open_assistant, model_v2_open_assistant, prompt, completions)
 
-    # # Test DirectPreferenceRewardModel versions
-    # print("\nTesting DirectPreferenceRewardModel versions...")
-    # model_v1_direct_preference = DirectPreferenceRewardModelV1(device=devices[2])
-    # model_v2_direct_preference = DirectPreferenceRewardModelV2(device=devices[3])
-    # test_model(model_v1_direct_preference, model_v2_direct_preference, prompt, completions)
+    # Test DirectPreferenceRewardModel versions
+    print("\nTesting DirectPreferenceRewardModel versions...")
+    model_v1_direct_preference = DirectPreferenceRewardModelV1(device=devices[0])
+    model_v2_direct_preference = DirectPreferenceRewardModelV2(device=devices[1])
+    test_model(model_v1_direct_preference, model_v2_direct_preference, prompt, completions)
 
 # Sample run for the revised script
 main()
