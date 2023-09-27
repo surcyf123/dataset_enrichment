@@ -19,7 +19,7 @@ do
     PORT=$((START_PORT + i))
 
     # Start the process with pm2
-    pm2 start --name "${PORT}" --time --interpreter=python3 /root/dataset_enrichment/enrichment_pipeline/reward_endpoint/reward_endpoint.py -- --port $PORT --gpu $GPU_ID
+    pm2 start --name "${PORT}" --time --interpreter=python3 /root/dataset_enrichment/enrichment_pipeline/reward_endpoint/batched/batched_endpoint.py -- --port $PORT --gpu $GPU_ID
 
     # Append the URL for this reward endpoint to the urls array
     url_list+="\"http://$EXTERNAL_IP:$EXTERNAL_PORT\","

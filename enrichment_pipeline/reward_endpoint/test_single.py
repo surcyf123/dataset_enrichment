@@ -2,9 +2,14 @@ import requests
 
 # The API endpoint
 urls = [
-    # "http://142.182.6.112:55469", "http://142.182.6.112:55467", "http://142.182.6.112:55430", "http://142.182.6.112:55430", #"vast2",
-    "http://184.67.78.114:42036", "http://184.67.78.114:42091", "http://184.67.78.114:42082", "http://184.67.78.114:42093", # "vast3",
-#     "http://37.27.2.44:60113", "http://37.27.2.44:60180", "http://37.27.2.44:60151", "http://37.27.2.44:60181", # "vast4",
+    "http://47.189.79.46:50159", # 3090s1
+    "http://47.189.79.46:50108",
+    "http://47.189.79.46:50193",
+    "http://47.189.79.46:50060",
+    'http://211.21.106.84:57414', # 3090s2
+    'http://211.21.106.84:57515',
+    'http://211.21.106.84:57298',
+    'http://211.21.106.84:57445',
 ]
 
 prompt = '''
@@ -13,7 +18,6 @@ Maryland Gov. Larry Hogan (R) upended the regional debate over Metro funding Mon
 '''
 completion = '''
 Here is a summary of the given text in four sentences:\n\n1. Maryland Governor Larry Hogan has offered to provide an additional $500 million in funding over four years to help save the Metrorail system if Virginia, DC, and the federal government match this amount.\n2. This offer represents a significant shift from Hogan's previously stated position at a recent regional summit where he refused to consider adding funds beyond those currently contributed annually by Maryland.
-
 '''
 # Your data
 data = {
