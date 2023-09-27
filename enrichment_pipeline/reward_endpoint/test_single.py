@@ -6,10 +6,10 @@ urls = [
     "http://47.189.79.46:50108",
     "http://47.189.79.46:50193",
     "http://47.189.79.46:50060",
-    'http://211.21.106.84:57414', # 3090s2
-    'http://211.21.106.84:57515',
-    'http://211.21.106.84:57298',
-    'http://211.21.106.84:57445',
+    # 'http://211.21.106.84:57414', # 3090s2
+    # 'http://211.21.106.84:57515',
+    # 'http://211.21.106.84:57298',
+    # 'http://211.21.106.84:57445',
 ]
 
 prompt = '''
@@ -21,7 +21,7 @@ Here is a summary of the given text in four sentences:\n\n1. Maryland Governor L
 '''
 # Your data
 data = {
-    "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
+    "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@",  # Your authentication token
     "prompt": prompt,
     "completions": [completion, completion],
 }

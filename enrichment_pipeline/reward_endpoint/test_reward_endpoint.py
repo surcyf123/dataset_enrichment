@@ -5,7 +5,7 @@ import logging
 
 # Setting up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-VERIFY_TOKEN = "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n"
+VERIFY_TOKEN = "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@"
 
 URLS = {
     "http://47.189.79.46:50159": "1", # 3090s1
@@ -27,31 +27,31 @@ CONVERSATIONAL_WORDS = [
     "advise", "mention", "remark", "note",
 ]
 
-def pick_random_words(word_list, min_words, max_words):
-    """Return a list of randomly picked words with replacement."""
-    num_words = random.randint(min_words, max_words)
-    return [random.choice(word_list) for _ in range(num_words)]
-
+def pick_random_words(word_list, num_words):
+    """Return a string of randomly picked words without replacement."""
+    return ' '.join(random.sample(word_list, num_words))
 
 # Send requests and measure time
-def test_url(url, note, num_requests, min_words, max_words):
+def test_url(url, note, num_requests, num_words):
     timings = []
     failed = False
     example_output = None
 
     for i in range(num_requests):
-        prompt = pick_random_words(CONVERSATIONAL_WORDS, min_words, max_words)
-        completions = [pick_random_words(CONVERSATIONAL_WORDS, min_words, max_words) for _ in range(10)]
+        prompt = pick_random_words(CONVERSATIONAL_WORDS, num_words)
+        completions = [pick_random_words(CONVERSATIONAL_WORDS, num_words) for _ in range(16)]
         data = {
-            "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",
+            "verify_token": VERIFY_TOKEN,
             "prompt": prompt,
             "completions": completions
         }
-
         try:
             start_time = time.time()
             response = requests.post(url, json=data)
             response.raise_for_status()  # Will raise an exception for HTTP error codes
+            print(f"Response for URL {url} ({note}):")
+            print(response.json())
+            print("-" * 80)
             end_time = time.time()
 
             timings.append(end_time - start_time)
@@ -83,8 +83,8 @@ def collect_statistics(url, note, timings):
     }
 
 def main():
-    MIN_WORDS = 100
-    MAX_WORDS = 100
+    MIN_WORDS = 50
+    MAX_WORDS = 40
     NUM_REQUESTS = 3
     failed_urls = []
     all_statistics = []
@@ -93,7 +93,7 @@ def main():
     # Loop through URLs and notes from the dictionary
     for url, note in URLS.items():
         print(f"Testing for URL: {url} ({note})")
-        timings, failed, example_output = test_url(url, note, num_requests=NUM_REQUESTS, min_words=MIN_WORDS, max_words=MAX_WORDS)
+        timings, failed, example_output = test_url(url, note, num_requests=NUM_REQUESTS, num_words=MAX_WORDS)
         if not failed:
             stats = collect_statistics(url, note, timings)
             all_statistics.append(stats)
@@ -113,7 +113,6 @@ def main():
     print("\nExample Outputs:")
     for url, note, output in example_outputs:
         print(f"Example output for URL: {url} ({note}):")
-        print(output)
         print("-" * 80)
 
     if failed_urls:

@@ -363,7 +363,7 @@ app = Flask(__name__)
 @app.route("/", methods=["POST"])
 def chat():
     data = request.get_json()
-    if data.get("verify_token") not in ["SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n"]:
+    if data.get("verify_token") not in ["SjhSXuEmZoW#%SD@#nAsd123bash#$%&@"]:
         return jsonify({"error": "Invalid authentication token"}), 401
 
     prompt, completions = data.get("prompt"), data.get("completions")
