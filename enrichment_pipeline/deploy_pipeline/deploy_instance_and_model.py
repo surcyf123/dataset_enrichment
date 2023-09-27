@@ -12,7 +12,7 @@ import uuid
 import threading
 from typing import Dict
 import sys
-active_branch = "ethan/journey-to-0.4"
+active_branch = "journey-to-0.4"
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 
@@ -46,14 +46,14 @@ elif len(sys.argv) == 3:
     print(f"Using prompts found at {fmt_file_path}")
 
 elif len(sys.argv) == 1:
-    models_to_test=["TheBloke/Pygmalion-2-13B-SuperCOT-weighed-GPTQ",
-"TheBloke/MAmmoTH-Coder-13B-GPTQ",
-"TheBloke/Synthia-13B-v1.2-GPTQ",
-"TheBloke/MetaMath-13B-V1.0-GPTQ",
-"TheBloke/MXLewdMini-L2-13B-GPTQ",
-"TheBloke/storytime-13B-GPTQ",
-"TheBloke/PuddleJumper-13B-V2-GPTQ",
-"TheBloke/EverythingLM-13B-V3-16K-GPTQ",]
+    models_to_test=["TheBloke/CAMEL-13B-Combined-Data-GPTQ",
+"TheBloke/13B-Ouroboros-GPTQ",
+"TheBloke/13B-BlueMethod-GPTQ",
+"TheBloke/chronos-wizardlm-uc-scot-st-13B-GPTQ",
+"TheBloke/chronos-hermes-13B-GPTQ",
+"TheBloke/Uncensored-Frank-13b-GPTQ",
+"TheBloke/tulu-13B-GPTQ",
+"TheBloke/OpenOrcaxOpenChat-Preview2-13B-GPTQ",]
     print("Using hardcoded models with auto prompt discovery")
 
 
