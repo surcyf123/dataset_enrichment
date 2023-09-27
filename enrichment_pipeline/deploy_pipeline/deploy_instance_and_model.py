@@ -46,14 +46,15 @@ elif len(sys.argv) == 3:
     print(f"Using prompts found at {fmt_file_path}")
 
 elif len(sys.argv) == 1:
-    models_to_test=["TheBloke/CAMEL-13B-Combined-Data-GPTQ",
-"TheBloke/13B-Ouroboros-GPTQ",
-"TheBloke/13B-BlueMethod-GPTQ",
-"TheBloke/chronos-wizardlm-uc-scot-st-13B-GPTQ",
-"TheBloke/chronos-hermes-13B-GPTQ",
-"TheBloke/Uncensored-Frank-13b-GPTQ",
-"TheBloke/tulu-13B-GPTQ",
-"TheBloke/OpenOrcaxOpenChat-Preview2-13B-GPTQ",]
+    use_fmt_file = False
+    models_to_test=["TheBloke/MythoLogic-13B-GPTQ",
+"TheBloke/MythoBoros-13B-GPTQ",
+"TheBloke/Karen_theEditor_13B-GPTQ",
+"TheBloke/WizardLM-13B-V1.0-Uncensored-GPTQ",
+"TheBloke/Wizard-Vicuna-13B-Uncensored-GPTQ",
+"TheBloke/Dolphin-Llama-13B-GPTQ",
+"TheBloke/based-13b-GPTQ",
+"TheBloke/CAMEL-13B-Role-Playing-Data-GPTQ",]
     print("Using hardcoded models with auto prompt discovery")
 
 
@@ -90,7 +91,7 @@ for model_name in models_to_test:
 gpu_name = "RTX_4090"
 cmd_string = "set api-key dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 completed_process = subprocess.run(['./vast.py']+cmd_string.split(" "))
-search_for_instances = f'search offers " num_gpus={num_gpus} reliability > 0.90 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
+search_for_instances = f'search offers " num_gpus={num_gpus} reliability > 0.70 gpu_name={gpu_name} inet_down > 200" -o "inet_down-"'
 search_output = subprocess.run(['./vast.py']+shlex.split(search_for_instances),stdout=subprocess.PIPE,text=True)
 lines = search_output.stdout.strip().split("\n")
 headers = lines[0].replace("NV Driver","NV_Driver").split()
