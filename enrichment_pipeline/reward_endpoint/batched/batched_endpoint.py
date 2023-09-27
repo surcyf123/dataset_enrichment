@@ -346,8 +346,6 @@ class RewardEndpoint:
         mask_products = mask_tensor.prod(dim=1).to(self.device)  # Compute the product along the model dimension
 
         # 3. Final total reward for the batch
-        print("total_weighted_rewards device:", total_weighted_rewards.device)
-        print("mask_products device:", mask_products.device)
         total_rewards = (total_weighted_rewards * mask_products).tolist()
 
         return completion_results, total_rewards
