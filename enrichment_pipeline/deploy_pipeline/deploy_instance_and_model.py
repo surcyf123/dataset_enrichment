@@ -16,10 +16,10 @@ active_branch = "ethan/journey-to-0.4"
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 
-use_fmt_file = bool(sys.argv[1])
-fmt_file_path = sys.argv[2]
+
 
 if len(sys.argv) == 2:
+    use_fmt_file = bool(sys.argv[1])
     with open("fmtEXAMPLE.json", "r") as f:
         prompts = json.load(f)
         
@@ -32,6 +32,8 @@ if len(sys.argv) == 2:
     print("Using Default fmtEXAMPLE.json prompts")
 
 elif len(sys.argv) == 3:
+    use_fmt_file = bool(sys.argv[1])
+    fmt_file_path = sys.argv[2]
     with open(fmt_file_path, "r") as f:
         prompts = json.load(f)
         
@@ -44,14 +46,14 @@ elif len(sys.argv) == 3:
     print(f"Using prompts found at {fmt_file_path}")
 
 elif len(sys.argv) == 1:
-    models_to_test=["TheBloke/Dolphin-Llama-13B-GPTQ",
-"TheBloke/minotaur-13B-GPTQ",
-"TheBloke/Nous-Puffin-70B-GPTQ",
-"TheBloke/airoboros-13B-GPTQ",
-"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ",
-"TheBloke/CAMEL-13B-Combined-Data-GPTQ",
-"TheBloke/vicuna-13B-1.1-GPTQ",
-"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ",]
+    models_to_test=["TheBloke/Pygmalion-2-13B-SuperCOT-weighed-GPTQ",
+"TheBloke/MAmmoTH-Coder-13B-GPTQ",
+"TheBloke/Synthia-13B-v1.2-GPTQ",
+"TheBloke/MetaMath-13B-V1.0-GPTQ",
+"TheBloke/MXLewdMini-L2-13B-GPTQ",
+"TheBloke/storytime-13B-GPTQ",
+"TheBloke/PuddleJumper-13B-V2-GPTQ",
+"TheBloke/EverythingLM-13B-V3-16K-GPTQ",]
     print("Using hardcoded models with auto prompt discovery")
 
 
