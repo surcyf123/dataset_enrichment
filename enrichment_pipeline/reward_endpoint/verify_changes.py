@@ -123,8 +123,6 @@ class OpenAssistantRewardModelV2(BaseRewardModel):
         super().__init__()
         self.mean, self.var = torch.tensor([0.75]).to(self.device), torch.tensor([1.69]).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(OpenAssistantRewardModelV2.reward_model_name)
-        # self.tokenizer.pad_token = self.tokenizer.eos_token
-        # assert self.tokenizer.pad_token is not None, f"Tokenizer's pad token not set for {self.name}!"
         self.model = AutoModelForSequenceClassification.from_pretrained(OpenAssistantRewardModelV2.reward_model_name).half().to(self.device)
 
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
@@ -138,7 +136,7 @@ class OpenAssistantRewardModelV2(BaseRewardModel):
     def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         with torch.no_grad():
             prompts = [prompt] * len(completions)
-            inputs = self.tokenizer(prompts, completions, padding=True, truncation=True, max_length=512, return_tensors='pt').to(self.device)
+            inputs = self.tokenizer(prompts, completions, padding=True, truncation=False, max_length=512, return_tensors='pt').to(self.device)
             return self.model(**inputs).logits.squeeze(1)
 
 
@@ -277,8 +275,6 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
         super().__init__()
         self.mean, self.var = torch.tensor([-11.78]).to(self.device), torch.tensor([4.36]).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModelV2.reward_model_name)
-        # self.tokenizer.pad_token = self.tokenizer.eos_token
-        # assert self.tokenizer.pad_token is not None, f"Tokenizer's pad token not set for {self.name}!"
         self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModelV2.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
 
     def reward_single(self, prompt: str, completion: str) -> float:
@@ -374,11 +370,11 @@ def main():
     model_v2_open_assistant = OpenAssistantRewardModelV2(device=devices[3])
     test_model(model_v1_open_assistant, model_v2_open_assistant, prompt, completions)
 
-    # Test DirectPreferenceRewardModel versions
-    print("\nTesting DirectPreferenceRewardModel versions...")
-    model_v1_direct_preference = DirectPreferenceRewardModelV1(device=devices[2])
-    model_v2_direct_preference = DirectPreferenceRewardModelV2(device=devices[3])
-    test_model(model_v1_direct_preference, model_v2_direct_preference, prompt, completions)
+    # # Test DirectPreferenceRewardModel versions
+    # print("\nTesting DirectPreferenceRewardModel versions...")
+    # model_v1_direct_preference = DirectPreferenceRewardModelV1(device=devices[2])
+    # model_v2_direct_preference = DirectPreferenceRewardModelV2(device=devices[3])
+    # test_model(model_v1_direct_preference, model_v2_direct_preference, prompt, completions)
 
 # Sample run for the revised script
 main()
