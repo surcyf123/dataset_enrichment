@@ -12,7 +12,7 @@ import uuid
 import threading
 from typing import Dict
 import sys
-active_branch = "ethan/change-git-to-s3"
+active_branch = "ethan/journey-to-0.4"
 VAST_API_KEY = "dd582e01b1712f13d7da8dd6463551029b33cff6373de8497f25a2a03ec813ad"
 pkey = paramiko.RSAKey.from_private_key_file("../../credentials/autovastai")
 
