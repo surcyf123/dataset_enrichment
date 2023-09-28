@@ -2,7 +2,9 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Auto
 import torch
 from typing import List, Tuple, Optional
 from abc import abstractmethod
+import threading
 import os
+import torch.nn.functional as F
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 class BaseRewardModel:
@@ -155,11 +157,7 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             DirectPreferenceRewardModelV1.reward_model_name
         )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            DirectPreferenceRewardModelV1.reward_model_name,
-            trust_remote_code=True,
-            torch_dtype=torch.float16,
-        ).to(self.device)
+        self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModelV1.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
 
     def reward_single(self, prompt: str, completion: str, name: str, with_penalty=True) -> float:
         with torch.no_grad():
@@ -167,6 +165,7 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
                 return -11
             combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
             prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+
             if self.tokenizer.model_max_length <= len(prompt_part):
                 return -11.0
             if self.tokenizer.model_max_length < len(combined):
@@ -179,13 +178,9 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             labels = labels.unsqueeze(0).unsqueeze(2)
             logits = self.model(combined.unsqueeze(0)).logits
             logits = logits[:, :-1, :]
-            if with_penalty:
-                for i in range(len(prompt_part) + 1, len(combined) - 1):
-                    logit = logits[:, i, :].clone()
-                    inputs = combined[len(prompt_part) : i].clone()
-                    logits[:, i, :] = self.logit_penalty(input_ids=inputs, logit=logit)
             logits = logits.log_softmax(-1)
             per_token_logps = torch.gather(logits, dim=2, index=labels).squeeze(2)
+            print(f"V1 Per-Token Logps for '{completion}':", per_token_logps[0, loss_mask].cpu().detach().numpy())
             reward = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
             reward = reward[0].cpu().detach()
             if torch.isnan(reward) or torch.isinf(reward):
@@ -198,17 +193,6 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             dtype=torch.float32,
         ).to(self.device)
         return rewards
-
-    def logit_penalty(self, input_ids: torch.LongTensor, logit: torch.FloatTensor) -> torch.FloatTensor:
-        uniques, counts = input_ids.unique(return_counts=True)
-        score = torch.gather(logit, 1, uniques.unsqueeze(0))
-        score = torch.where(
-            score < 0,
-            score * (self.penalty**counts),
-            score / (self.penalty**counts),
-        )
-        logit.scatter_(1, uniques.unsqueeze(0), score.to(logit.dtype))
-        return logit
 
 
 class DirectPreferenceRewardModelV2(BaseRewardModel):
@@ -228,12 +212,13 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
         self.model.resize_token_embeddings(len(self.tokenizer))
 
     def prepare_input(self, prompt: str, completions: List[str]) -> (torch.Tensor, List[Optional[torch.Tensor]]):
-        """Tokenizes and prepares the input tensors"""
+        """Tokenizes and prepares the input tensors after stripping newline characters."""
         prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
         input_ids_list = []
 
         for completion in completions:
-            combined = self.tokenizer(prompt + completion, truncation=True, return_tensors="pt").input_ids[0].to(self.device)
+            combined = self.tokenizer(prompt + completion, truncation=False, return_tensors="pt").input_ids[0].to(self.device)
+
             if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
                 input_ids_list.append(None)
             else:
@@ -260,7 +245,73 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
                     continue
                 labels = combined[1:]
                 per_token_logps = torch.gather(logits[idx], dim=1, index=labels.unsqueeze(1)).squeeze(1)
-                reward = per_token_logps.mean()
+                print(f"V2 Per-Token Logps for '{completions[idx]}':", per_token_logps.cpu().detach().numpy())
+                loss_mask = (combined[1:] != -100)
+                reward = (per_token_logps * loss_mask).sum() / loss_mask.sum()
+                if torch.isnan(reward) or torch.isinf(reward):
+                    rewards.append(-11.)
+                else:
+                    rewards.append(reward.item())
+
+            return torch.tensor(rewards, dtype=torch.float16, device=self.device)
+
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        prompt_part, input_ids_list = self.prepare_input(prompt, completions)
+        return self.reward_batch(prompt_part, input_ids_list)
+
+class DirectPreferenceRewardModelV3(BaseRewardModel):
+    reward_model_name: str = "cerebras/btlm-3b-8k-base"
+
+    @property
+    def name(self) -> str: 
+        return "DPOV3"
+
+    def __init__(self, device: str):
+        self.device = device
+        super().__init__() 
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            DirectPreferenceRewardModelV3.reward_model_name
+        )
+        self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModelV3.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.model.resize_token_embeddings(len(self.tokenizer))
+        
+    def prepare_input(self, prompt: str, completions: List[str]) -> (torch.Tensor, List[Optional[torch.Tensor]]):
+        """Tokenizes and prepares the input tensors."""
+        prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+        input_ids_list = []
+
+        for completion in completions:
+            combined = self.tokenizer(prompt + completion, truncation=False, return_tensors="pt").input_ids[0].to(self.device)
+
+            if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
+                input_ids_list.append(None)
+            else:
+                input_ids_list.append(combined)
+
+        return prompt_part, input_ids_list
+
+    def reward_batch(self, prompt_part: torch.Tensor, input_ids_list: List[Optional[torch.Tensor]]) -> torch.FloatTensor:
+        with torch.no_grad():
+            valid_input_ids = [ids for ids in input_ids_list if ids is not None]
+            if not valid_input_ids:
+                return torch.full((len(input_ids_list),), -11., device=self.device, dtype=torch.float16)
+
+            max_length = max([len(ids) for ids in valid_input_ids])
+        padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), self.tokenizer.pad_token_id, device=self.device, dtype=torch.long)], 0) for ids in valid_input_ids])
+
+            logits = self.model(padded_input_ids).logits[:, :-1, :]
+            logits = logits.log_softmax(-1)
+            
+            rewards = []
+            for idx, combined in enumerate(input_ids_list):
+                if combined is None:
+                    rewards.append(-11.)
+                    continue
+                labels = combined[1:].unsqueeze(1)
+                per_token_logps = torch.gather(logits[idx], dim=1, index=labels).squeeze(1)
+                loss_mask = (combined[1:] != -100)
+                reward = (per_token_logps * loss_mask).sum() / loss_mask.sum()
                 if torch.isnan(reward) or torch.isinf(reward):
                     rewards.append(-11.)
                 else:
@@ -283,14 +334,14 @@ def test_model(old_model, new_model, prompt: str, completions: List[str]):
 
     print(f"Old Model Rewards: {old_rewards}")
     print(f"New Model Rewards: {new_rewards}")
+    return
+    # difference = torch.abs(old_rewards - new_rewards)
+    # print(f"Difference between old and new rewards: {difference}")
 
-    difference = torch.abs(old_rewards - new_rewards)
-    print(f"Difference between old and new rewards: {difference}")
-
-    return difference
+    # return difference
 
 prompt = '''
-Maryland Gov. Larry Hogan (R) upended the regional debate over Metro funding Monday by offering to give the transit system an extra $500 million over four years if Virginia, the District and the federal government each do the same.\n\nHogan's proposal, made in a letter delivered Monday morning to Virginia Gov. Terry McAuliffe (D) and D.C. Mayor Muriel E. Bowser (D), narrowed their differences over funding and appeared to increase chances that the region could agree on a plan to save the agency.\n\nBut it remained to be seen whether the other three parties \u2014 especially the federal government and Virginia \u2014 would go along. Some politicians grumbled that Hogan only made the proposal because he knew it was unlikely to be accepted, and a Metro board member predicted the federal government would balk.\n\nOverall, however, top Metro officials and other regional leaders praised Hogan for taking an important first step toward reaching consensus, while they warned that the plan falls short of a permanent solution.\n\nHogan's action marked a dramatic reversal from his position in a contentious, closed-door, regional summit two weeks ago. There, Hogan shocked McAuliffe and Bowser by saying Maryland would not give Metro any additional funds beyond what it already contributes each year.\n\n[Behind closed doors, region\u2019s leaders clashed sharply over Metro funding]\n\nOn Monday, Hogan reaffirmed the stance he took at the summit against new taxes to support Metro, and he complained that Maryland contributes more than its fair share to the struggling transit agency. But he took a new approach regarding more money.\n\n\"The needs of the Metro system are immediate and overwhelming,\" Hogan wrote in the detailed, four-page letter. \"Given the current crisis, the State of Maryland is prepared to invest an additional $500 million in increased Metro funding over the next four years if the Commonwealth of Virginia, the District of Columbia and the federal government all commit to do the same.\"\n\nHogan's about-face appeared prompted partly by intense criticism of his earlier opposition, officials said, both from other regional actors and from a strongly worded editorial in The Washington Post headlined, \"Larry Hogan to Metro: Drop Dead.\" Hogan is expected to seek reelection next year, and an anti-Metro stance could hurt him in vote-rich Montgomery and Prince George's counties.\n\nBut Hogan spokesman Doug Mayer suggested the governor had taken the adamant position at the summit as a bargaining ploy at the start of what he expected to be a prolonged process.\n\nHogan is \"always negotiating,\" Mayer said.\n\nMayer also rejected the idea that Hogan had altered his position, noting that the governor emphasized in the letter his previous stance that the federal government ought to contribute more to Metro. In proposing more money now from Maryland, Virginia and the District, Mayer said, the governor was expanding on his earlier strategy.\n\n[Maryland to get $900-million federal full funding agreement for Purple Line]\n\nRep. Gerald E. Connolly (D-Va.) welcomed Hogan's change of mind and said he believed it came in response to the backlash to Hogan's position at the summit\n\nSummarize the preceding context in 4 sentences. Do not try to create questions or answers for your summarization.\n\n
+Maryland Gov. Larry Hogan (R) upended the regional debate over Metro funding Monday by offering to give the emphasized in the letter his previous stance that the federal government ought to contribute more to Metro. In proposing more money now from Maryland, Virginia and the District, Mayer said, the governor was expanding on his earlier strategy.\n\n[Maryland to get $900-million federal full funding agreement for Purple Line]\n\nRep. Gerald E. Connolly (D-Va.) welcomed Hogan's change of mind and said he believed it came in response to the backlash to Hogan's position at the summit\n\nSummarize the preceding context in 4 sentences. Do not try to create questions or answers for your summarization.\n\n
 
 '''
 completions = [
@@ -301,31 +352,59 @@ I don't know the answer to that question
 '''
 ]
 
+def load_model_v1(device):
+    global model_v1
+    model_v1 = DirectPreferenceRewardModelV1(device=device)
+
+def load_model_v2(device):
+    global model_v2
+    model_v2 = DirectPreferenceRewardModelV3(device=device)
+
 def main():
+    # 1. Load models
     num_gpus = torch.cuda.device_count()
-    assert num_gpus >= 3, "At least three GPUs are required for this setup."
-    
+    assert num_gpus >= 2, "At least two GPUs are required for this setup."
     devices = [f"cuda:{i}" for i in range(num_gpus)]
-    # Test ReciprocateRewardModel versions
-    # print("\nTesting ReciprocateRewardModel versions...")
-    # model_v1_reciprocate = ReciprocateRewardModelV1(device=devices[2])
-    # model_v2_reciprocate = ReciprocateRewardModelV2(device=devices[3])
-    # test_model(model_v1_reciprocate, model_v2_reciprocate, prompt, completions)
 
-    # # Test OpenAssistantRewardModel versions
-    # print("\nTesting OpenAssistantRewardModel versions...")
-    # model_v1_open_assistant = OpenAssistantRewardModelV1(device=devices[2])
-    # model_v2_open_assistant = OpenAssistantRewardModelV2(device=devices[3])
-    # test_model(model_v1_open_assistant, model_v2_open_assistant, prompt, completions)
+    # Start threads
+    thread1 = threading.Thread(target=load_model_v1, args=(devices[0],))
+    thread2 = threading.Thread(target=load_model_v2, args=(devices[1],))
+    thread1.start()
+    thread2.start()
+    thread1.join()
+    thread2.join()
 
-    # Test DirectPreferenceRewardModel versions
-    print("\nTesting DirectPreferenceRewardModel versions...")
-    model_v1_direct_preference = DirectPreferenceRewardModelV1(device=devices[0])
-    model_v2_direct_preference = DirectPreferenceRewardModelV2(device=devices[1])
-    test_model(model_v1_direct_preference, model_v2_direct_preference, prompt, completions)
+    test_model(model_v1, model_v2, prompt, completions)
+    # 2. Test tokenization
+    tokenized_prompt_v1, tokenized_completions_v1 = model_v1.tokenizer(prompt), [model_v1.tokenizer(comp) for comp in completions]
+    tokenized_prompt_v2, tokenized_completions_v2 = model_v2.tokenizer(prompt), [model_v2.tokenizer(comp) for comp in completions]
+    
+    assert tokenized_prompt_v1 == tokenized_prompt_v2, "Tokenized prompts differ."
+    for idx, (comp_v1, comp_v2) in enumerate(zip(tokenized_completions_v1, tokenized_completions_v2)):
+        assert comp_v1 == comp_v2, f"Tokenized completion {idx} differs."
 
-# Sample run for the revised script
+    # 3. Test model inference
+    input_text = "The quick brown fox"
+    with torch.no_grad():
+        inputs_v1 = model_v1.tokenizer(input_text, return_tensors="pt").input_ids.to(devices[0])
+        logits_v1 = model_v1.model(inputs_v1).logits
+        inputs_v2 = model_v2.tokenizer(input_text, return_tensors="pt").input_ids.to(devices[1])
+        logits_v2 = model_v2.model(inputs_v2).logits
+
+    assert torch.allclose(logits_v1, logits_v2, atol=1e-6), "Model logits differ."
+
+    # 4. Test logits and probabilities for completions
+    logits_list_v1 = [model_v1.model(model_v1.tokenizer(prompt + comp, return_tensors="pt").input_ids.to(devices[0])).logits for comp in completions]
+    logits_list_v2 = [model_v2.model(model_v2.tokenizer(prompt + comp, return_tensors="pt").input_ids.to(devices[1])).logits for comp in completions]
+    for idx, (logits_v1, logits_v2) in enumerate(zip(logits_list_v1, logits_list_v2)):
+        assert torch.allclose(logits_v1, logits_v2, atol=1e-6), f"Logits for completion {idx} differ."
+
+    # 5. Test high-level methods
+    rewards_v1 = [model_v1.reward_single(prompt, comp, "TestName") for comp in completions]
+    rewards_v2 = model_v2.get_rewards(prompt, completions)
+    for idx, (reward_v1, reward_v2) in enumerate(zip(rewards_v1, rewards_v2)):
+        assert torch.allclose(reward_v1, reward_v2, atol=1e-6), f"Rewards for completion {idx} differ."
+
+    print("All tests passed!")
+
 main()
-
-
-
