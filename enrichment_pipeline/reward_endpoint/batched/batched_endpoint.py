@@ -9,13 +9,13 @@ from abc import abstractmethod
 import time
 from collections import defaultdict
 import traceback
-
+import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 # TODO
-# look into optimizations for the reward models (quantization, clearning cache, make more memory efficient/faster)
-# Test how quant models affect scores and what the variability is)
+# check quantized version of cerebras
+# figure out tokenization glitch for DPO model (slight difference on batch vs single processing)
 # organize dict into reward models and masks - low priority
-# add batch processing
 
 class BaseRewardModel:
     sqrt_of_2: torch.FloatTensor
@@ -31,18 +31,24 @@ class BaseRewardModel:
         self.var = torch.tensor([0.0]).to(self.device)
     
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        zero_tensor = torch.tensor([0.0]).to(self.mean.device)
-        one_half_tensor = torch.tensor([0.5]).to(self.mean.device)
-
+        # 1. Subtract the mean.
         rewards.sub_(self.mean)
-        if self.var.item() != 0:  # This check remains as it's checking the tensor's value, not its type
+        
+        # 2. If the variance is non-zero, divide by the square root of the variance.
+        if self.var.item() != 0: 
             rewards.div_(torch.sqrt(self.var))
-        rewards.mul_(one_half_tensor).add_(torch.erf(rewards.div(self.sqrt_of_2)))
+        
+        # 3. Apply the error function transformation.
+        rewards = torch.erf(rewards.div(self.sqrt_of_2))
+        
+        # 4. Scale and translate to the [0, 1] range.
+        rewards.mul_(0.5).add_(0.5)
         return rewards
     
     def apply(self, prompt: str, responses: List[str]) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         successful_rewards = self.get_rewards(prompt, responses)
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
+
         return successful_rewards, successful_rewards_normalized
 
 class RelevanceRewardModel(BaseRewardModel):
@@ -308,6 +314,7 @@ class RewardEndpoint:
         total_weighted_rewards = torch.zeros(len(completions)).to(self.device)
         for reward_fn in self.reward_functions:
             raw_rewards, normalized_rewards = reward_fn.apply(prompt, completions)
+            print(f"{reward_fn.name} Normalized Rewards: {normalized_rewards}")
             weight = self.model_weights[reward_fn.name]  # Direct dictionary access
             total_weighted_rewards.add_(normalized_rewards * weight)
             
@@ -352,11 +359,28 @@ def chat():
     try:
         result = rw.calculate_total_reward(prompt, completions)
         return jsonify(result)
-    except Exception as e:
-        tb = traceback.format_exc()
-        print(f"Error: {str(e)}")
-        print(tb)
-        return str(e), 500
+    except RuntimeError as e:
+        if "out of memory" in str(e):
+            print("CUDA Out Of Memory error. Clearing cache and trying again...")
+            torch.cuda.empty_cache()
+            try:
+                result = rw.calculate_total_reward(prompt, completions)
+                return jsonify(result)
+            except RuntimeError as e_inner:
+                if "out of memory" in str(e_inner):
+                    print("CUDA Out Of Memory error on retry. Clearing cache and failing.")
+                    torch.cuda.empty_cache()  # Clear cache again for good measure
+                    return jsonify({"error": "Out of GPU memory. Request too large."}), 507  # 507: Insufficient Storage
+                else:
+                    tb = traceback.format_exc()
+                    print(f"Error after retrying: {str(e_inner)}")
+                    print(tb)
+                    return str(e_inner), 500
+        else:
+            tb = traceback.format_exc()
+            print(f"Error: {str(e)}")
+            print(tb)
+            return str(e), 500
 
 if __name__ == "__main__":
     args = parse_arguments()
