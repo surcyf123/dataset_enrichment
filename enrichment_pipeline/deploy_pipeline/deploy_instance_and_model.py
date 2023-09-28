@@ -63,15 +63,10 @@ reward_endpoints = [
     "http://47.189.79.46:50159", # 3090s1
     "http://47.189.79.46:50108",
     "http://47.189.79.46:50193",
-    "http://47.189.79.46:50060",
-    'http://211.21.106.84:57414', # 3090s2
-    'http://211.21.106.84:57515',
-    'http://211.21.106.84:57298',
-    'http://211.21.106.84:57445',
-] 
+    "http://47.189.79.46:50060"] 
 
 assert(len(models_to_test) <= 8)
-assert(len(reward_endpoints) >= len(models_to_test))
+# assert(len(reward_endpoints) >= len(models_to_test))
 num_gpus = len(models_to_test)
 
 # TODO: Handle when you are outbid
@@ -331,7 +326,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         'model_path' : chosen_experiment_model_name,
         'local_port' : chosen_experiment_model_port,
         'gpuID' : experiment_id,
-        'reward_endpoint' : reward_endpoints[experiment_id]
+        'reward_endpoint' : reward_endpoints[experiment_id//2 % len(reward_endpoints)]
     }
     # Run Model
     commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
