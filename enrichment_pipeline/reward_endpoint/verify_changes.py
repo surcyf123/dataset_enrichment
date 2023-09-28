@@ -454,7 +454,7 @@ def load_model_v4(device):
 def main():
     # 1. Load models
     num_gpus = torch.cuda.device_count()
-    assert num_gpus >= 2, "At least two GPUs are required for this setup."
+    assert num_gpus >= 4, "At least two GPUs are required for this setup."
     devices = [f"cuda:{i}" for i in range(num_gpus)]
 
     # Start threads
@@ -469,7 +469,7 @@ def main():
     thread1.join()
     thread2.join()
     thread3.join()
-    thread4.join
+    thread4.join()
 
     test_model(model_v1, model_v2, model_v3, model_v4, prompt, completions)
     # 2. Test tokenization
