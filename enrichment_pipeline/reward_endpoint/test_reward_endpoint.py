@@ -5,13 +5,17 @@ import logging
 
 # Setting up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-VERIFY_TOKEN = "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@"
+VERIFY_TOKEN = "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n"
 
 URLS = {
     "http://47.189.79.46:50159": "1", # 3090s1
     "http://47.189.79.46:50108": "2",
     "http://47.189.79.46:50193": "3",
     "http://47.189.79.46:50060": "4",
+    'http://211.21.106.84:57414': "5", # 3090s2
+    'http://211.21.106.84:57515': "6",
+    'http://211.21.106.84:57298': "7",
+    'http://211.21.106.84:57445': "8",
 }
 
 # PROMPT = """

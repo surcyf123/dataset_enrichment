@@ -1,5 +1,5 @@
 import torch
-from typing import Dict, Tuple, List, Union
+from typing import Dict, Tuple, List, Union, Optional
 from flask import Flask, request, jsonify
 import argparse
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModel, AutoModelForCausalLM
@@ -161,9 +161,10 @@ class OpenAssistantRewardModel(BaseRewardModel):
         super().__init__()
         self.mean, self.var = torch.tensor([0.75]).to(self.device), torch.tensor([1.69]).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(OpenAssistantRewardModel.reward_model_name)
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        assert self.tokenizer.pad_token is not None, f"Tokenizer's pad token not set for {self.name}!"
         self.model = AutoModelForSequenceClassification.from_pretrained(OpenAssistantRewardModel.reward_model_name).half().to(self.device)
+
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return self.reward_batch(prompt, completions)
 
     def reward_single(self, prompt: str, completion: str) -> float:
         with torch.no_grad():
@@ -173,14 +174,8 @@ class OpenAssistantRewardModel(BaseRewardModel):
     def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         with torch.no_grad():
             prompts = [prompt] * len(completions)
-            print("Type and value of prompts:", type(prompts), prompts)
-            print("Type and value of completions:", type(completions), completions)
-
-            inputs = self.tokenizer(prompts, completions, padding=True, truncation=True, max_length=512, return_tensors='pt').to(self.device)
+            inputs = self.tokenizer(prompts, completions, padding=True, truncation=False, max_length=512, return_tensors='pt').to(self.device)
             return self.model(**inputs).logits.squeeze(1)
-
-    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        return self.reward_batch(prompt, completions)
 
 class ReciprocateRewardModel(BaseRewardModel):
 
@@ -196,28 +191,21 @@ class ReciprocateRewardModel(BaseRewardModel):
         super().__init__()
         self.mean, self.var = torch.tensor([2.91]).to(self.device), torch.tensor([13.35]).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(ReciprocateRewardModel.reward_model_path, revision=ReciprocateRewardModel.revision)
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        assert self.tokenizer.pad_token is not None, f"Tokenizer's pad token not set for {self.name}!"
         self.model = AutoModelForSequenceClassification.from_pretrained(
             ReciprocateRewardModel.reward_model_path,
             revision=ReciprocateRewardModel.revision,
             torch_dtype=torch.float16
         ).to(self.device)
 
-    def reward_single(self, prompt: str, completion: str) -> float:
-        with torch.no_grad():
-            message = f"{prompt}</s>{completion}</s>"
-            inputs = self.tokenizer(message, return_tensors="pt", truncation=True).to(self.device)
-            return float(self.model(**inputs).logits[0].item())
+    def get_rewards(self, prompt: str, completions: List[str], name=None) -> torch.FloatTensor:
+        return self.reward_batch(prompt, completions)
 
     def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
         with torch.no_grad():
             messages = [f"{prompt}</s>{completion}</s>" for completion in completions]
             inputs = self.tokenizer(messages, padding=True, truncation=True, return_tensors="pt").to(self.device)
-            return self.model(**inputs).logits.squeeze(1)
-
-    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        return self.reward_batch(prompt, completions)
+            logits = self.model(**inputs).logits.squeeze(1)
+            return logits
 
 class DirectPreferenceRewardModel(BaseRewardModel):
     reward_model_name = "cerebras/btlm-3b-8k-base"
@@ -231,60 +219,53 @@ class DirectPreferenceRewardModel(BaseRewardModel):
         super().__init__()
         self.mean, self.var = torch.tensor([-11.78]).to(self.device), torch.tensor([4.36]).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModel.reward_model_name)
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        assert self.tokenizer.pad_token is not None, f"Tokenizer's pad token not set for {self.name}!"
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModel.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
+        self.model.resize_token_embeddings(len(self.tokenizer))
 
-    def reward_single(self, prompt: str, completion: str) -> float:
-        with torch.no_grad():
-            combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
-            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+    def prepare_input(self, prompt: str, completions: List[str]) -> (torch.Tensor, List[Optional[torch.Tensor]]):
+        """Tokenizes and prepares the input tensors"""
+        prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+        input_ids_list = []
+
+        for completion in completions:
+            combined = self.tokenizer(prompt + completion, truncation=True, return_tensors="pt").input_ids[0].to(self.device)
             if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
-                return -11.
+                input_ids_list.append(None)
+            else:
+                input_ids_list.append(combined)
 
-            combined = combined[:self.tokenizer.model_max_length]
-            labels = combined.clone()
-            labels[:len(prompt_part)] = -100
-            labels = labels[1:]
+        return prompt_part, input_ids_list
 
-            logits = self.model(combined.unsqueeze(0)).logits[:, :-1, :]
-            logits = logits.log_softmax(-1)
-            per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(0).unsqueeze(2)).squeeze(2)
-            mask = (labels != -100).unsqueeze(0)
-            reward = (per_token_logps[mask]).mean()
-
-            if torch.isnan(reward) or torch.isinf(reward):
-                return -11.
-            return reward.item()
-
-    def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+    def reward_batch(self, prompt_part: torch.Tensor, input_ids_list: List[Optional[torch.Tensor]]) -> torch.FloatTensor:
         with torch.no_grad():
-            combined = self.tokenizer([prompt]*len(completions), completions, padding=True, truncation=True, return_tensors="pt").to(self.device)
-            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
-            
-            if len(prompt_part) >= self.tokenizer.model_max_length:
-                return torch.full((len(completions),), -11).to(dtype=torch.float16)
+            valid_input_ids = [ids for ids in input_ids_list if ids is not None]
+            if not valid_input_ids:
+                return torch.full((len(input_ids_list),), -11., device=self.device, dtype=torch.float16)
 
-            labels = combined.input_ids.clone()
-            labels[:, :len(prompt_part)] = 0
-            labels = labels[:, 1:]
-
-            logits = self.model(**combined).logits[:, :-1, :]
+            max_length = max([len(ids) for ids in valid_input_ids])
+            padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), self.tokenizer.pad_token_id, device=self.device)], 0) for ids in valid_input_ids])
+            logits = self.model(padded_input_ids).logits[:, :-1, :]
             logits = logits.log_softmax(-1)
-            per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(2)).squeeze(2)
-            mask = (labels != 0)
             
-            counts = mask.sum(dim=1)
-            sums = (per_token_logps * mask).sum(dim=1)
-            rewards = sums / counts.to(dtype=torch.float16)
-            
-            invalid_rewards = torch.isnan(rewards) | torch.isinf(rewards)
-            rewards[invalid_rewards] = -11.0
-            
-            return rewards
+            rewards = []
+            for idx, combined in enumerate(input_ids_list):
+                if combined is None:
+                    rewards.append(-11.)
+                    continue
+                labels = combined[1:]
+                per_token_logps = torch.gather(logits[idx], dim=1, index=labels.unsqueeze(1)).squeeze(1)
+                reward = per_token_logps.mean()
+                if torch.isnan(reward) or torch.isinf(reward):
+                    rewards.append(-11.)
+                else:
+                    rewards.append(reward.item())
+
+            return torch.tensor(rewards, dtype=torch.float16, device=self.device)
 
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        return self.reward_batch(prompt, completions)
+        prompt_part, input_ids_list = self.prepare_input(prompt, completions)
+        return self.reward_batch(prompt_part, input_ids_list)
 
 def mean_pooling(model_output, attention_mask, dtype=torch.float32):
 
@@ -361,7 +342,7 @@ app = Flask(__name__)
 @app.route("/", methods=["POST"])
 def chat():
     data = request.get_json()
-    if data.get("verify_token") not in ["SjhSXuEmZoW#%SD@#nAsd123bash#$%&@"]:
+    if data.get("verify_token") not in ["SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n"]:
         return jsonify({"error": "Invalid authentication token"}), 401
 
     prompt, completions = data.get("prompt"), data.get("completions")
