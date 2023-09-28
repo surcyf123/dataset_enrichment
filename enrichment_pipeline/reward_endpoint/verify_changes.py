@@ -165,7 +165,6 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
                 return -11
             combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
             prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
-
             if self.tokenizer.model_max_length <= len(prompt_part):
                 return -11.0
             if self.tokenizer.model_max_length < len(combined):
@@ -180,7 +179,6 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             logits = logits[:, :-1, :]
             logits = logits.log_softmax(-1)
             per_token_logps = torch.gather(logits, dim=2, index=labels).squeeze(2)
-            print(f"V1 Per-Token Logps for '{completion}':", per_token_logps[0, loss_mask].cpu().detach().numpy())
             reward = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
             reward = reward[0].cpu().detach()
             if torch.isnan(reward) or torch.isinf(reward):
@@ -193,7 +191,6 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             dtype=torch.float32,
         ).to(self.device)
         return rewards
-
 
 class DirectPreferenceRewardModelV2(BaseRewardModel):
     reward_model_name = "cerebras/btlm-3b-8k-base"
@@ -212,13 +209,12 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
         self.model.resize_token_embeddings(len(self.tokenizer))
 
     def prepare_input(self, prompt: str, completions: List[str]) -> (torch.Tensor, List[Optional[torch.Tensor]]):
-        """Tokenizes and prepares the input tensors after stripping newline characters."""
+        """Tokenizes and prepares the input tensors"""
         prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
         input_ids_list = []
 
         for completion in completions:
-            combined = self.tokenizer(prompt + completion, truncation=False, return_tensors="pt").input_ids[0].to(self.device)
-
+            combined = self.tokenizer(prompt + completion, truncation=True, return_tensors="pt").input_ids[0].to(self.device)
             if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
                 input_ids_list.append(None)
             else:
@@ -245,9 +241,7 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
                     continue
                 labels = combined[1:]
                 per_token_logps = torch.gather(logits[idx], dim=1, index=labels.unsqueeze(1)).squeeze(1)
-                print(f"V2 Per-Token Logps for '{completions[idx]}':", per_token_logps.cpu().detach().numpy())
-                loss_mask = (combined[1:] != -100)
-                reward = (per_token_logps * loss_mask).sum() / loss_mask.sum()
+                reward = per_token_logps.mean()
                 if torch.isnan(reward) or torch.isinf(reward):
                     rewards.append(-11.)
                 else:
@@ -298,8 +292,7 @@ class DirectPreferenceRewardModelV3(BaseRewardModel):
                 return torch.full((len(input_ids_list),), -11., device=self.device, dtype=torch.float16)
 
             max_length = max([len(ids) for ids in valid_input_ids])
-        padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), self.tokenizer.pad_token_id, device=self.device, dtype=torch.long)], 0) for ids in valid_input_ids])
-
+            padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), 0).to(self.device)], 0) for ids in valid_input_ids])
             logits = self.model(padded_input_ids).logits[:, :-1, :]
             logits = logits.log_softmax(-1)
             
@@ -323,17 +316,107 @@ class DirectPreferenceRewardModelV3(BaseRewardModel):
         prompt_part, input_ids_list = self.prepare_input(prompt, completions)
         return self.reward_batch(prompt_part, input_ids_list)
 
+class DirectPreferenceRewardModelV4(BaseRewardModel):
+    reward_model_name = "cerebras/btlm-3b-8k-base"
 
-def test_model(old_model, new_model, prompt: str, completions: List[str]):
+    @property
+    def name(self) -> str:
+        return "DPOV4"
+
+    def __init__(self, device: str):
+        self.device = device
+        super().__init__()
+        self.mean, self.var = torch.tensor([-11.78]).to(self.device), torch.tensor([4.36]).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(DirectPreferenceRewardModelV4.reward_model_name)
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModelV4.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
+        self.model.resize_token_embeddings(len(self.tokenizer))
+
+    def reward_single(self, prompt: str, completion: str) -> float:
+        with torch.no_grad():
+            combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
+            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+            if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
+                return -11.
+
+            combined = combined[:self.tokenizer.model_max_length]
+            labels = combined.clone()
+            labels[:len(prompt_part)] = -100
+            labels = labels[1:]
+
+            logits = self.model(combined.unsqueeze(0)).logits[:, :-1, :]
+            logits = logits.log_softmax(-1)
+            per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(0).unsqueeze(2)).squeeze(2)
+            mask = (labels != -100).unsqueeze(0)
+            reward = (per_token_logps[mask]).mean()
+
+            if torch.isnan(reward) or torch.isinf(reward):
+                return -11.
+            return reward.item()
+
+    def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        with torch.no_grad():
+            # Step 1: Prepare individual inputs for each completion
+            input_ids_list = []
+            for completion in completions:
+                combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
+                prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+                
+                if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
+                    input_ids_list.append(None)  # Append None for invalid completions
+                    continue
+
+                combined = combined[:self.tokenizer.model_max_length]
+                input_ids_list.append(combined)
+            
+            # Remove None entries and create a tensor
+            valid_input_ids = [ids for ids in input_ids_list if ids is not None]
+            if not valid_input_ids:
+                # All completions are invalid
+                return torch.full((len(completions),), -11.).to(dtype=torch.float16)
+
+            # Step 2: Accumulate into one batch
+            max_length = max([len(ids) for ids in valid_input_ids])
+            padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), 0).to(self.device)], 0) for ids in valid_input_ids])
+            # padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), self.tokenizer.pad_token_id, device=self.device)], 0) for ids in valid_input_ids])
+
+            # Step 3: Forward this batch through the model
+            logits = self.model(padded_input_ids).logits[:, :-1, :]
+            logits = logits.log_softmax(-1)
+            
+            # Step 4: Calculate the rewards for each completion
+            rewards = []
+            for idx, combined in enumerate(input_ids_list):
+                if combined is None:
+                    rewards.append(-11.)
+                    continue
+                labels = combined[1:]
+                per_token_logps = torch.gather(logits[idx], dim=1, index=labels.unsqueeze(1)).squeeze(1)
+                reward = per_token_logps.mean()
+                if torch.isnan(reward) or torch.isinf(reward):
+                    rewards.append(-11.)
+                else:
+                    rewards.append(reward.item())
+            
+            return torch.tensor(rewards, dtype=torch.float16).to(self.device)
+
+    def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
+        return self.reward_batch(prompt, completions)
+
+def test_model(model1, model2, model3, model4, prompt: str, completions: List[str]):
     try:
-        old_rewards = old_model.get_rewards(prompt, completions, "dummy_name")
+        v1_rewards = model1.get_rewards(prompt, completions, "dummy_name")
     except TypeError:
-        old_rewards = old_model.get_rewards(prompt, completions)
+        v1_rewards = model1.get_rewards(prompt, completions)
 
-    new_rewards = new_model.get_rewards(prompt, completions)
+    v2_rewards = model2.get_rewards(prompt, completions)
+    v3_rewards = model3.get_rewards(prompt, completions)
+    v4_rewards = model4.get_rewards(prompt, completions)
 
-    print(f"Old Model Rewards: {old_rewards}")
-    print(f"New Model Rewards: {new_rewards}")
+    print(f"v1 Rewards: {v1_rewards}")
+    print(f"v2 Rewards: {v2_rewards}")
+    print(f"v3 Rewards: {v3_rewards}")
+    print(f"v4 Rewards: {v4_rewards}")
     return
     # difference = torch.abs(old_rewards - new_rewards)
     # print(f"Difference between old and new rewards: {difference}")
@@ -358,7 +441,15 @@ def load_model_v1(device):
 
 def load_model_v2(device):
     global model_v2
-    model_v2 = DirectPreferenceRewardModelV3(device=device)
+    model_v2 = DirectPreferenceRewardModelV2(device=device)
+
+def load_model_v3(device):
+    global model_v3
+    model_v3 = DirectPreferenceRewardModelV3(device=device)
+
+def load_model_v4(device):
+    global model_v4
+    model_v4 = DirectPreferenceRewardModelV4(device=device)
 
 def main():
     # 1. Load models
@@ -369,12 +460,18 @@ def main():
     # Start threads
     thread1 = threading.Thread(target=load_model_v1, args=(devices[0],))
     thread2 = threading.Thread(target=load_model_v2, args=(devices[1],))
+    thread3 = threading.Thread(target=load_model_v3, args=(devices[2],))
+    thread4 = threading.Thread(target=load_model_v4, args=(devices[3],))
     thread1.start()
     thread2.start()
+    thread3.start()
+    thread4.start()
     thread1.join()
     thread2.join()
+    thread3.join()
+    thread4.join
 
-    test_model(model_v1, model_v2, prompt, completions)
+    test_model(model_v1, model_v2, model_v3, model_v4, prompt, completions)
     # 2. Test tokenization
     tokenized_prompt_v1, tokenized_completions_v1 = model_v1.tokenizer(prompt), [model_v1.tokenizer(comp) for comp in completions]
     tokenized_prompt_v2, tokenized_completions_v2 = model_v2.tokenizer(prompt), [model_v2.tokenizer(comp) for comp in completions]
