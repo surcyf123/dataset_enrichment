@@ -1,6 +1,6 @@
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoModelForCausalLM
 import torch
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from abc import abstractmethod
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -151,7 +151,7 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
     def __init__(self, device: str):
         self.device = device
         super().__init__() 
-        self.penalty = 1.2  # Same penalty as the original [paper](https://arxiv.org/pdf/1909.05858.pdf).
+        self.penalty = 1.2
         self.tokenizer = AutoTokenizer.from_pretrained(
             DirectPreferenceRewardModelV1.reward_model_name
         )
@@ -161,116 +161,55 @@ class DirectPreferenceRewardModelV1(BaseRewardModel):
             torch_dtype=torch.float16,
         ).to(self.device)
 
-    def reward_single(
-        self, prompt: str, completion: str, name: str, with_penalty=True
-    ) -> float:
-        r"""Calculates a direct preference optimization (DPO) style reward for a completion,
-        which is a reference model's average log-probability for completion tokens given a prompt.
-        Uses guidance from https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py.
-        """
+    def reward_single(self, prompt: str, completion: str, name: str, with_penalty=True) -> float:
         with torch.no_grad():
-            # Check if completion is
             if completion.strip() == "" or len(completion) <= 5:
-                return -11  # exp(-11)=1.67e-5 < 2e-5=1/50257 (typical vocab size)
-
-            # Tokenize the combined prompt + completion.
-            combined = (
-                self.tokenizer(prompt + completion, return_tensors="pt")
-                .input_ids[0]
-                .to(self.device)
-            )  # [seq_len]
-            # Tokenize only the prompt, to help determine prompt token length.
-            prompt_part = (
-                self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
-            )  # [prompt_len]
-
-            # Completion doesn't fit into model sequence, so return lowest reward.
+                return -11
+            combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
+            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
             if self.tokenizer.model_max_length <= len(prompt_part):
-                return -11.0  # exp(-11)=1.67e-5 < 2e-5=1/50257 (typical vocab size)
-
-            # Truncate combined to fit into model max sequence length.
+                return -11.0
             if self.tokenizer.model_max_length < len(combined):
                 combined = combined[: self.tokenizer.model_max_length]
-
-            labels = combined.clone()  # [seq_len]
-            # Ignore prompt part for calculating reward.
+            labels = combined.clone()
             labels[: len(prompt_part)] = -100
-            # Label only each next token prediction ground-truth.
-            labels = labels[1:]  # [seq_len-1]
-            loss_mask = labels != -100  # [seq_len-1]
-            # Dummy token to allow for indexing, but loss will be ignored.
+            labels = labels[1:]
+            loss_mask = labels != -100
             labels[labels == -100] = 0
-            # Reshape for gather operation.
-            labels = labels.unsqueeze(0).unsqueeze(2)  # [batch_size=1, seq_len-1, :]
-
-            # Forward pass to calculate logit predictions for each sequence position.
-            logits = self.model(
-                combined.unsqueeze(0)
-            ).logits  # [batch_size=1, seq_len, vocab_len]
-            # Predict only where labels are available.
-            logits = logits[:, :-1, :]  # [batch_size=1, seq_len-1, vocab_len]
-
+            labels = labels.unsqueeze(0).unsqueeze(2)
+            logits = self.model(combined.unsqueeze(0)).logits
+            logits = logits[:, :-1, :]
             if with_penalty:
-                # Apply penalty for repeated generation
                 for i in range(len(prompt_part) + 1, len(combined) - 1):
                     logit = logits[:, i, :].clone()
                     inputs = combined[len(prompt_part) : i].clone()
                     logits[:, i, :] = self.logit_penalty(input_ids=inputs, logit=logit)
-
-            # Rescale via log(softmax(logits)).
             logits = logits.log_softmax(-1)
-            # Calculate the model's log-probability for each actual completion token.
-            per_token_logps = torch.gather(logits, dim=2, index=labels).squeeze(
-                2
-            )  # [batch_size=1, seq_len-1]
-            # Average log-probability over completion sequence.
-            reward = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(
-                -1
-            )  # [batch_size=1]
+            per_token_logps = torch.gather(logits, dim=2, index=labels).squeeze(2)
+            reward = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
             reward = reward[0].cpu().detach()
-
-            # NaNs can possibly arise through log(0)=-inf, replace with suitably small logits.
             if torch.isnan(reward) or torch.isinf(reward):
-                return -11.0  # exp(-11)=1.67e-5 < 2e-5=1/50257 (typical vocab size)
-            print("\n[DirectPreferenceRewardModelV1 Debugging]")
-            # print("Combined input_ids:", combined)
-            # print("Prompt part:", prompt_part)
-            # print("Labels:", labels)
-            if logits is not None:
-                print("Logits shape:", logits.shape)
-            if per_token_logps is not None:
-                print("Per token logps shape:", per_token_logps.shape)
-            print("Reward:", reward)
+                return -11.0
             return reward.item()
 
-    def get_rewards(
-        self, prompt: str, completions: List[str], name: str
-    ) -> torch.FloatTensor:
+    def get_rewards(self, prompt: str, completions: List[str], name: str) -> torch.FloatTensor:
         rewards = torch.tensor(
-            [
-                self.reward_single(prompt, completion, name)
-                for completion in completions
-            ],
+            [self.reward_single(prompt, completion, name) for completion in completions],
             dtype=torch.float32,
         ).to(self.device)
         return rewards
 
-    def logit_penalty(
-        self, input_ids: torch.LongTensor, logit: torch.FloatTensor
-    ) -> torch.FloatTensor:
-        # Counts the unique tokens within each generation
+    def logit_penalty(self, input_ids: torch.LongTensor, logit: torch.FloatTensor) -> torch.FloatTensor:
         uniques, counts = input_ids.unique(return_counts=True)
         score = torch.gather(logit, 1, uniques.unsqueeze(0))
-
-        # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
         score = torch.where(
             score < 0,
             score * (self.penalty**counts),
             score / (self.penalty**counts),
         )
-
         logit.scatter_(1, uniques.unsqueeze(0), score.to(logit.dtype))
         return logit
+
 
 class DirectPreferenceRewardModelV2(BaseRewardModel):
     reward_model_name = "cerebras/btlm-3b-8k-base"
@@ -288,58 +227,32 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
         self.model = AutoModelForCausalLM.from_pretrained(DirectPreferenceRewardModelV2.reward_model_name, trust_remote_code=True, torch_dtype=torch.float16).to(self.device)
         self.model.resize_token_embeddings(len(self.tokenizer))
 
-    def reward_single(self, prompt: str, completion: str) -> float:
-        with torch.no_grad():
-            combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
-            prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+    def prepare_input(self, prompt: str, completions: List[str]) -> (torch.Tensor, List[Optional[torch.Tensor]]):
+        """Tokenizes and prepares the input tensors"""
+        prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
+        input_ids_list = []
+
+        for completion in completions:
+            combined = self.tokenizer(prompt + completion, truncation=True, return_tensors="pt").input_ids[0].to(self.device)
             if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
-                return -11.
-
-            combined = combined[:self.tokenizer.model_max_length]
-            labels = combined.clone()
-            labels[:len(prompt_part)] = -100
-            labels = labels[1:]
-
-            logits = self.model(combined.unsqueeze(0)).logits[:, :-1, :]
-            logits = logits.log_softmax(-1)
-            per_token_logps = torch.gather(logits, dim=2, index=labels.unsqueeze(0).unsqueeze(2)).squeeze(2)
-            mask = (labels != -100).unsqueeze(0)
-            reward = (per_token_logps[mask]).mean()
-
-            if torch.isnan(reward) or torch.isinf(reward):
-                return -11.
-            return reward.item()
-
-    def reward_batch(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        with torch.no_grad():
-            # Step 1: Prepare individual inputs for each completion
-            input_ids_list = []
-            for completion in completions:
-                combined = self.tokenizer(prompt + completion, return_tensors="pt").input_ids[0].to(self.device)
-                prompt_part = self.tokenizer(prompt, return_tensors="pt").input_ids[0].to(self.device)
-                
-                if len(prompt_part) >= self.tokenizer.model_max_length or len(combined) == 0:
-                    input_ids_list.append(None)  # Append None for invalid completions
-                    continue
-
-                combined = combined[:self.tokenizer.model_max_length]
+                input_ids_list.append(None)
+            else:
                 input_ids_list.append(combined)
-            
-            # Remove None entries and create a tensor
+
+        return prompt_part, input_ids_list
+
+    def reward_batch(self, prompt_part: torch.Tensor, input_ids_list: List[Optional[torch.Tensor]]) -> torch.FloatTensor:
+        with torch.no_grad():
             valid_input_ids = [ids for ids in input_ids_list if ids is not None]
             if not valid_input_ids:
-                # All completions are invalid
-                return torch.full((len(completions),), -11.).to(dtype=torch.float16)
+                return torch.full((len(input_ids_list),), -11., device=self.device, dtype=torch.float16)
 
-            # Step 2: Accumulate into one batch
             max_length = max([len(ids) for ids in valid_input_ids])
-            padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), 0).to(self.device)], 0) for ids in valid_input_ids])
-            
-            # Step 3: Forward this batch through the model
+            padded_input_ids = torch.stack([torch.cat([ids, torch.full((max_length - len(ids),), self.tokenizer.pad_token_id, device=self.device)], 0) for ids in valid_input_ids])
+
             logits = self.model(padded_input_ids).logits[:, :-1, :]
             logits = logits.log_softmax(-1)
             
-            # Step 4: Calculate the rewards for each completion
             rewards = []
             for idx, combined in enumerate(input_ids_list):
                 if combined is None:
@@ -352,11 +265,12 @@ class DirectPreferenceRewardModelV2(BaseRewardModel):
                     rewards.append(-11.)
                 else:
                     rewards.append(reward.item())
-            
-            return torch.tensor(rewards, dtype=torch.float16).to(self.device)
+
+            return torch.tensor(rewards, dtype=torch.float16, device=self.device)
 
     def get_rewards(self, prompt: str, completions: List[str]) -> torch.FloatTensor:
-        return self.reward_batch(prompt, completions)
+        prompt_part, input_ids_list = self.prepare_input(prompt, completions)
+        return self.reward_batch(prompt_part, input_ids_list)
 
 
 def test_model(old_model, new_model, prompt: str, completions: List[str]):
