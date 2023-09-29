@@ -104,8 +104,9 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
             else:
                 raise Exception("It wasnt a success")
 
-        except:
+        except Exception as e:
             print(f"Failed to connect to reward model, attempt: {str(attempt)}")
+            print(reward_response.json())
             time.sleep(1)
             continue
         
