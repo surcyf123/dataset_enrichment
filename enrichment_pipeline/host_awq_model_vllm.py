@@ -63,6 +63,7 @@ async def process_request(data: RequestModel, gpu_type, model, engine):
     }
 
     request_id = "api_request"
+    print(data.prompt)
     engine.add_request(request_id, data.prompt, SamplingParams(**sampling_params)) 
 
     time_begin = time.time() 
