@@ -98,6 +98,10 @@ def initialize_engine(model):
     engine_args = EngineArgs(model=model, quantization="awq")
     return LLMEngine.from_engine_args(engine_args)
 
+
+os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
 args = parse_arguments()
 engine_instance = initialize_engine(args.model) if args.model else None
 
@@ -110,8 +114,6 @@ def run_app():
     uvicorn.run(debug=False, port=args.port)
 
 def main():
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     import threading
     if args.model:
         print(f"Launching Model: {args.model}")
