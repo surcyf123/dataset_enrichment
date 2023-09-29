@@ -47,14 +47,14 @@ elif len(sys.argv) == 3:
 
 elif len(sys.argv) == 1:
     use_fmt_file = False
-    models_to_test=["TheBloke/MythoLogic-13B-GPTQ",
-"TheBloke/MythoBoros-13B-GPTQ",
-"TheBloke/Karen_theEditor_13B-GPTQ",
-"TheBloke/WizardLM-13B-V1.0-Uncensored-GPTQ",
-"TheBloke/Wizard-Vicuna-13B-Uncensored-GPTQ",
-"TheBloke/Dolphin-Llama-13B-GPTQ",
-"TheBloke/based-13b-GPTQ",
-"TheBloke/CAMEL-13B-Role-Playing-Data-GPTQ",]
+    models_to_test=["TheBloke/ALMA-13B-Pretrain-AWQ",
+"TheBloke/MAmmoTH-Coder-13B-AWQ",
+"TheBloke/Synthia-13B-v1.2-AWQ",
+"TheBloke/MetaMath-13B-V1.0-AWQ",
+"TheBloke/MXLewdMini-L2-13B-AWQ",
+"TheBloke/storytime-13B-AWQ",
+"TheBloke/PuddleJumper-13B-V2-AWQ",
+"TheBloke/MAmmoTH-13B-AWQ",]
     print("Using hardcoded models with auto prompt discovery")
 
 
