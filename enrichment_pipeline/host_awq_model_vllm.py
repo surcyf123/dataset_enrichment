@@ -8,6 +8,8 @@ import sys
 import time
 import os
 from typing import Optional
+import os
+
 
 args = None
 VALID_GPU_TYPES = ["3090", "4090"]
@@ -104,9 +106,20 @@ app = FastAPI()
 async def generate_text(data: RequestModel):
     return await process_request(data, args.gpu_type, args.model, engine_instance)
 
+def run_app():
+    uvicorn.run(debug=False, port=args.port)
+
 def main():
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    import threading
     if args.model:
-        uvicorn.run(app, host="0.0.0.0", port=args.port)
+        t = threading.Thread(target=run_app)
+        t.start()
+        # Give Server some time to start
+        time.sleep(60)
+        with open(f'/root/ckpts/{str(args.gpu_id)}_ckpt3', 'w') as fp:
+            pass
     elif args.model_choice:
         for i, model_name in enumerate(MODEL_CHOICES[args.model_choice]):
             start_model_server(f"TheBloke/{model_name}", 30000 + i, i, args.gpu_type)
