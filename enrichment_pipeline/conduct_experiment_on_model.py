@@ -57,27 +57,29 @@ def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:fl
     if prompt_formatting:
         data = {
         "prompt": prompt_template.replace("{prompt}",prompt.rstrip()),
-        "max_new_tokens": num_tokens,
+        "n" : 1,
         "temperature": temperature,
         "top_p": top_p,
         "top_k": top_k,
-        "repetition_penalty": repetition_penalty,
-        "stopwords": []
+        "presence_penalty": repetition_penalty,
+        "num_tokens": num_tokens,
+        "stopwords": [],
     }
     else:
         data = {
-        "prompt": prompt,
-        "max_new_tokens": num_tokens,
+        "prompt": prompt.rstrip(),
+        "n" : 1,
         "temperature": temperature,
         "top_p": top_p,
         "top_k": top_k,
-        "repetition_penalty": repetition_penalty,
-        "stopwords": []
+        "presence_penalty": repetition_penalty,
+        "num_tokens": num_tokens,
+        "stopwords": [],
     }
     start_time = time.time()
     response = requests.post(f"http://localhost:{local_port}/generate", json=data)
     elapsed_time = time.time() - start_time
-    return response.json()['text'],elapsed_time
+    return response.json()['response'][0],response.json()['tokens_per_second']
 # %%
 def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     '''Take the prompt, as well as the response, and return scores'''
@@ -119,7 +121,7 @@ timestamp_str = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
 if prompt_formatting_found:
     for num_tokens in hyperparameter_searches["num_tokens"]:
         with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv', mode='a', newline='') as csv_file:
-            fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
+            fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'tokens_per_second','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             csv_writer.writeheader()
 
@@ -136,7 +138,7 @@ if prompt_formatting_found:
                                 retries = 0
                                 while True:
                                     try:
-                                        generated_text, duration = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty,prompt_formatting=True)
+                                        generated_text, tokens_per_second = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty,prompt_formatting=True)
                                         reward_scores = get_scores_from_reward_model(prompt, generated_text)
                                         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                                         # Write a row to the CSV file
@@ -147,7 +149,7 @@ if prompt_formatting_found:
                                             'top_p': top_p,
                                             'top_k': top_k,
                                             'repetition_penalty': repetition_penalty,
-                                            'duration': duration,
+                                            'tokens_per_second': tokens_per_second,
                                             'bert' : reward_scores[0]["Bert"][0],
                                             'bert_norm' : reward_scores[0]["Bert"][1],
                                             'dpo' : reward_scores[0]["DPO"][0],
@@ -180,8 +182,8 @@ if prompt_formatting_found:
             df = pd.read_csv(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}-fmt.csv')
             f.write(f'gpu_name {gpu_name}\n')
             
-            mean_duration = df['duration'].mean()
-            f.write(f'mean_duration {mean_duration}\n')
+            mean_tokens_per_second = df['tokens_per_second'].mean()
+            f.write(f'mean_tokens_per_second {mean_tokens_per_second}\n')
             total_relevance_pass_rate = (df[df['total_reward'] != 0].shape[0])/len(df)
             f.write(f'relevance_pass_rate {total_relevance_pass_rate}\n')
 
@@ -224,7 +226,7 @@ if prompt_formatting_found:
 # Write the header to the CSV file
 for num_tokens in hyperparameter_searches["num_tokens"]:
     with open(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv', mode='a', newline='') as csv_file:
-        fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'duration','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
+        fieldnames = ['prompt_index','num_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'tokens_per_second','bert','bert_norm','dpo','dpo_norm','mpnet','mpnet_norm','rlhf','rlhf_norm','reciprocate','reciprocate_norm','total_reward','prompt','generated_text']
         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         csv_writer.writeheader()
 
@@ -241,7 +243,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
                             retries = 0
                             while True:
                                 try:
-                                    generated_text, duration = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty, prompt_formatting = False)
+                                    generated_text, tokens_per_second = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty, prompt_formatting = False)
                                     reward_scores = get_scores_from_reward_model(prompt, generated_text)
                                     csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                                     # Write a row to the CSV file
@@ -252,7 +254,7 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
                                         'top_p': top_p,
                                         'top_k': top_k,
                                         'repetition_penalty': repetition_penalty,
-                                        'duration': duration,
+                                        'tokens_per_second': tokens_per_second,
                                         'bert' : reward_scores[0]["Bert"][0],
                                         'bert_norm' : reward_scores[0]["Bert"][1],
                                         'dpo' : reward_scores[0]["DPO"][0],
@@ -283,8 +285,8 @@ for num_tokens in hyperparameter_searches["num_tokens"]:
         df = pd.read_csv(f'/root/results/{experiment_id}/raw_results/{timestamp_str}-{num_tokens}-{model_name}.csv')
         f.write(f'gpu_name {gpu_name}\n')
         
-        mean_duration = df['duration'].mean()
-        f.write(f'mean_duration {mean_duration}\n')
+        mean_tokens_per_second = df['tokens_per_second'].mean()
+        f.write(f'mean_tokens_per_second {mean_tokens_per_second}\n')
         total_relevance_pass_rate = (df[df['total_reward'] != 0].shape[0])/len(df)
         f.write(f'relevance_pass_rate {total_relevance_pass_rate}\n')
 

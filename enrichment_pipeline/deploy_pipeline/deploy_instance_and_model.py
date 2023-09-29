@@ -228,7 +228,7 @@ dep_shell.send("git config --global user.name 'AutoVastAI' && git config --globa
 
 # Connect and Install Dependancies
 time.sleep(0.3)
-commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum boto3',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","touch /root/ckpts/ckpt1"]
+commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum boto3 uvicorn vllm pydantic fastapi',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "mkdir /root/ckpts","touch /root/ckpts/ckpt1"]
 
 # commands = ['git clone git@github.com:surcyf123/dataset_enrichment.git','cd /root/dataset_enrichment/','pip3 install --upgrade Pillow',f'git checkout {active_branch}','pip3 install flask tqdm torch tiktoken transformers peft accelerate torchvision torchaudio auto-gptq optimum',"sudo apt install screen","curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash","sudo apt-get install git-lfs","git lfs install","pip3 install flash-attn --no-build-isolation", "git clone https://github.com/chu-tianxiang/vllm-gptq.git", "cd vllm-gptq", "pip3 install -e .","cat /root/dataset_enrichment/credentials/ckpt1"]
 commandstr = " && ".join(commands)
@@ -329,7 +329,7 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
         'reward_endpoint' : reward_endpoints[experiment_id//2 % len(reward_endpoints)]
     }
     # Run Model
-    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_gptq_model.py {launch_args['model_path']} {launch_args['local_port']} {launch_args['gpuID']}"]
+    commands = ["cd /root/dataset_enrichment/enrichment_pipeline",f"python3 host_awq_model_vllm.py --model {launch_args['model_path']} --port {launch_args['local_port']} --gpu_id {launch_args['gpuID']} --gpu_type={gpu_name.replace('RTX_','')}"]
     commandstr = " && ".join(commands)
     model_shells[experiment_id].send(commandstr+"\n")
     while not model_shells[experiment_id].recv_ready():
