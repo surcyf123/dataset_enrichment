@@ -110,7 +110,7 @@ async def generate_text(data: RequestModel):
     return await process_request(data, args.gpu_type, args.model, engine_instance)
 
 def run_app():
-    uvicorn.run(debug=False, port=args.port)
+    uvicorn.run(app,port=args.port,host="0.0.0.0")
 
 def main():
     import threading
