@@ -141,6 +141,8 @@ if prompt_formatting_found:
                                 while True:
                                     try:
                                         generated_text, tokens_per_second = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty,prompt_formatting=True)
+                                        print(prompt)
+                                        print(generated_text)
                                         reward_scores = get_scores_from_reward_model(prompt, generated_text)
                                         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                                         # Write a row to the CSV file
