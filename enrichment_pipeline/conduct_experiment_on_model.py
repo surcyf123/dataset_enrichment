@@ -90,7 +90,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
     data = {
         "verify_token": "SjhSXuEmZoW#%SD@#nAsd123bash#$%&@n",  # Your authentication token
         "prompt": original_prompt,
-        "completions": [response]
+        "completions": [response,"poop"]
     }
 
     # Make the POST request
@@ -100,7 +100,7 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
             # do thing
             reward_response = requests.post(url, json=data)
             if reward_response.status_code == 200:
-                return reward_response.json()
+                return reward_response[0].json()
             else:
                 raise Exception("It wasnt a success")
 
