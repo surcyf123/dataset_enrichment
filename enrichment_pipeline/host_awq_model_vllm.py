@@ -103,6 +103,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 args = parse_arguments()
+print(args)
 engine_instance = initialize_engine(args.model) if args.model else None
 
 app = FastAPI()
