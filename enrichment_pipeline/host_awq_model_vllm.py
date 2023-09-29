@@ -114,6 +114,7 @@ def main():
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     import threading
     if args.model:
+        print(f"Launching Model: {args.model}")
         t = threading.Thread(target=run_app)
         t.start()
         # Give Server some time to start
