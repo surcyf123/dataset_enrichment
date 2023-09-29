@@ -1,5 +1,6 @@
 # %%
 import sys
+import traceback 
 model_name = sys.argv[1]
 local_port = sys.argv[2]
 experiment_id = sys.argv[3]
@@ -106,8 +107,9 @@ def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
         except:
             print(f"Failed to connect to reward model, attempt: {str(attempt)}")
             time.sleep(1)
+            continue
         
-        break
+    return "fgghlfksdgjhsfd"
 
     
     
@@ -171,6 +173,8 @@ if prompt_formatting_found:
                                             break
                                         print(f"{retries} - Failed to Call Model(s):")
                                         print(e)
+                                        traceback.print_exc()
+                                        continue
                                     break
 
 
@@ -276,6 +280,8 @@ for i, prompt in tqdm(enumerate(sampled_prompts)):
                                         break
                                     print(f"{retries} - Failed to Call Model(s):")
                                     print(e)
+                                    traceback.print_exc()
+                                    continue
                                 break
 
 # Writing the stats
