@@ -95,7 +95,7 @@ def parse_arguments():
     return parser.parse_args()
 
 def initialize_engine(model):
-    engine_args = EngineArgs(model=model, quantization="awq")
+    engine_args = EngineArgs(model=model, quantization="awq",dtype="half")
     return LLMEngine.from_engine_args(engine_args)
 
 
