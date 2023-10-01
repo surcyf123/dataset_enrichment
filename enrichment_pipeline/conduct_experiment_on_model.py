@@ -13,12 +13,14 @@ if len(sys.argv) > 6:
     print("Prompt Template:")
     print(prompt_template)
 
-elif len(sys.argv) == 5:
+elif len(sys.argv) == 6:
     prompt_formatting_found = True
     try:
         with open(model_name+"/README.md",'r') as readmefile:
             content = readmefile.read()
         prompt_template = content.split("<!-- prompt-template start -->")[1].split("<!-- prompt-template end -->")[0].split("```")[1].rstrip().lstrip()
+        print("Prompt Template: ")
+        print(prompt_template)
     except:
         print("No valid prompt formatting found.")
         prompt_formatting_found = False
@@ -77,9 +79,9 @@ def call_model_with_params(prompt:str,num_tokens:int,temperature:float, top_p:fl
         "num_tokens": num_tokens,
         "stopwords": [],
     }
-    start_time = time.time()
+    print(data['prompt'])
     response = requests.post(f"http://localhost:{local_port}/generate", json=data)
-    elapsed_time = time.time() - start_time
+
     return response.json()['response'][0],response.json()['tokens_per_second']
 # %%
 def get_scores_from_reward_model(original_prompt:str,response:str) -> Dict:
@@ -142,8 +144,6 @@ if prompt_formatting_found:
                                 while True:
                                     try:
                                         generated_text, tokens_per_second = call_model_with_params(prompt,num_tokens, temperature, top_p, top_k, repetition_penalty,prompt_formatting=True)
-                                        print(prompt)
-                                        print(generated_text)
                                         reward_scores = get_scores_from_reward_model(prompt, generated_text)
                                         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                                         # Write a row to the CSV file
