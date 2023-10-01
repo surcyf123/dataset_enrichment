@@ -47,14 +47,7 @@ elif len(sys.argv) == 3:
 
 elif len(sys.argv) == 1:
     use_fmt_file = False
-    models_to_test=["TheBloke/ALMA-13B-Pretrain-AWQ",
-"TheBloke/MAmmoTH-Coder-13B-AWQ",
-"TheBloke/Synthia-13B-v1.2-AWQ",
-"TheBloke/MetaMath-13B-V1.0-AWQ",
-"TheBloke/MXLewdMini-L2-13B-AWQ",
-"TheBloke/storytime-13B-AWQ",
-"TheBloke/PuddleJumper-13B-V2-AWQ",
-"TheBloke/MAmmoTH-13B-AWQ",]
+    models_to_test=["TheBloke/Synthia-13B-v1.2-AWQ"]
     print("Using hardcoded models with auto prompt discovery")
 
 
@@ -122,7 +115,7 @@ assert('success' in launch_subprocess_output.stdout) # it will fail here if ther
 # Find instance ID and wait for it to be done
 instance_id:str =re.findall("('new_contract': )(.*)(})",launch_subprocess_output.stdout)[0][1]
 print("Instance is starting...")
-time.sleep(5)
+time.sleep(10)
 while True:
     check_instances_command = f'show instances'
     
@@ -132,10 +125,11 @@ while True:
     headers = lines[0].replace("Util. %","Util_%").replace("SSH Addr","SSH_Addr").replace("SSH Port","SSH_Port").replace("Net up","Net_up").replace("Net down","Net_down").split()
     rows = [line.split() for line in lines[1:]]
     df_statuses = pd.DataFrame(rows,columns=headers)
+    print(df_statuses)
     target_row = df_statuses.loc[df_statuses['ID'] == instance_id] # Select the target row
     if target_row.iloc[0]['Status'] == "running":
         break
-    time.sleep(1)
+    time.sleep(10)
 print(f"Instance {instance_id} is ready!")
 #SSH into instance
 get_port_and_ip_command = f'show instance {instance_id}' #TODO: It works but not really intended for it to be working this way
@@ -350,7 +344,10 @@ def download_model_run_experiment_upload_results(chosen_experiment_model_name,ch
     time.sleep(0.1)
     experiment_shells[experiment_id].send('eval "$(ssh-agent -s)" && ssh-add ~/.ssh/autovastai'+"\n")
     time.sleep(0.1)
-    experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_id} {launch_args['reward_endpoint']} {gpu_name} '{prompt_formats[experiment_id] if use_fmt_file else ''}'"+"\n")
+    if use_fmt_file:
+        experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_id} {launch_args['reward_endpoint']} {gpu_name} '{prompt_formats[experiment_id]}'"+"\n")
+    else:
+        experiment_shells[experiment_id].send(f"python3 conduct_experiment_on_model.py {launch_args['model_path']} {launch_args['local_port']} {experiment_id} {launch_args['reward_endpoint']} {gpu_name}"+"\n")
     time.sleep(0.1)
     
     print(f"{experiment_id}:Running Experiment: {experiment_id}")
