@@ -10,12 +10,20 @@ import time
 from collections import defaultdict
 import traceback
 import os
+import gc
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 # TODO
 # check quantized version of cerebras
 # figure out tokenization glitch for DPO model (slight difference on batch vs single processing)
 # organize dict into reward models and masks - low priority
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", default=30000, type=int)
+    parser.add_argument("--gpu", default=0, type=int)
+    return parser.parse_args()
+
 
 class BaseRewardModel:
     sqrt_of_2: torch.FloatTensor
@@ -338,13 +346,6 @@ class RewardEndpoint:
 
         return completion_results, total_rewards
 
-
-def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default=30000, type=int)
-    parser.add_argument("--gpu", default=0, type=int)
-    return parser.parse_args()
-
 app = Flask(__name__)
 @app.route("/", methods=["POST"])
 def chat():
@@ -361,21 +362,10 @@ def chat():
         return jsonify(result)
     except RuntimeError as e:
         if "out of memory" in str(e):
-            print("CUDA Out Of Memory error. Clearing cache and trying again...")
+            print("CUDA Out Of Memory error. Clearing GPU memory.")
             torch.cuda.empty_cache()
-            try:
-                result = rw.calculate_total_reward(prompt, completions)
-                return jsonify(result)
-            except RuntimeError as e_inner:
-                if "out of memory" in str(e_inner):
-                    print("CUDA Out Of Memory error on retry. Clearing cache and failing.")
-                    torch.cuda.empty_cache()  # Clear cache again for good measure
-                    return jsonify({"error": "Out of GPU memory. Request too large."}), 507  # 507: Insufficient Storage
-                else:
-                    tb = traceback.format_exc()
-                    print(f"Error after retrying: {str(e_inner)}")
-                    print(tb)
-                    return str(e_inner), 500
+            gc.collect()
+            return jsonify({"error": "Out of GPU memory. Request too large."}), 507  # 507: Insufficient Storage
         else:
             tb = traceback.format_exc()
             print(f"Error: {str(e)}")

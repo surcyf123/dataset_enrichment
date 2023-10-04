@@ -3,6 +3,8 @@ import torch
 from typing import List, Tuple, Optional
 from abc import abstractmethod
 import threading
+from threading import Thread
+from queue import Queue
 import os
 import torch.nn.functional as F
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -399,24 +401,6 @@ class DirectPreferenceRewardModelV3(BaseRewardModel):
         prompt_part, input_ids_list = self.prepare_input(prompt, completions)
         return self.reward_batch(prompt_part, input_ids_list)
 
-def test_model(model1, model2, model3, prompt: str, completions: List[str]):
-    try:
-        v1_rewards = model1.get_rewards(prompt, completions, "dummy_name")
-    except TypeError:
-        v1_rewards = model1.get_rewards(prompt, completions)
-
-    v2_rewards = model2.get_rewards(prompt, completions)
-    v3_rewards = model3.get_rewards(prompt, completions)
-
-    print(f"v1 Rewards: {v1_rewards}")
-    print(f"v2 Rewards: {v2_rewards}")
-    print(f"v3 Rewards: {v3_rewards}")
-    return
-    # difference = torch.abs(old_rewards - new_rewards)
-    # print(f"Difference between old and new rewards: {difference}")
-
-    # return difference
-
 prompt = '''
 In proposing more money now from Maryland, Virginia and the District, Mayer said, the governor was expanding on his earlier strategy.\n\n[Maryland to get $900-million federal full funding agreement for Purple Line]\n\nRep. Gerald E. Connolly (D-Va.) welcomed Hogan's change of mind and said he believed it came in response to the backlash to Hogan's position at the summit\n\nSummarize the preceding context in 4 sentences. Do not try to create questions or answers for your summarization.\n\n
 
@@ -430,16 +414,13 @@ I don't know the answer to that question
 ]
 
 def load_model_v1(device):
-    global model_v1
-    model_v1 = DirectPreferenceRewardModelV1(device=device)
+    return DirectPreferenceRewardModelV1(device=device)
 
 def load_model_v2(device):
-    global model_v2
-    model_v2 = DirectPreferenceRewardModelV2(device=device)
+    return DirectPreferenceRewardModelV2(device=device)
 
 def load_model_v3(device):
-    global model_v3
-    model_v3 = DirectPreferenceRewardModelV3(device=device)
+    return DirectPreferenceRewardModelV3(device=device)
 
 def main():
     # 1. Load models
@@ -447,10 +428,14 @@ def main():
     assert num_gpus >= 4, "At least two GPUs are required for this setup."
     devices = [f"cuda:{i}" for i in range(num_gpus)]
 
-    # Start threads
-    thread1 = threading.Thread(target=load_model_v1, args=(devices[0],))
-    thread2 = threading.Thread(target=load_model_v2, args=(devices[1],))
-    thread3 = threading.Thread(target=load_model_v3, args=(devices[2],))
+    # Create a queue to collect the models returned by threads
+    queue = Queue()
+
+    # Modified threads to put the models in the queue
+    thread1 = Thread(target=lambda q, arg: q.put(load_model_v1(arg)), args=(queue, devices[0]))
+    thread2 = Thread(target=lambda q, arg: q.put(load_model_v2(arg)), args=(queue, devices[1]))
+    thread3 = Thread(target=lambda q, arg: q.put(load_model_v3(arg)), args=(queue, devices[2]))
+
     thread1.start()
     thread2.start()
     thread3.start()
@@ -458,7 +443,12 @@ def main():
     thread2.join()
     thread3.join()
 
-    test_model(model_v1, model_v2, model_v3, prompt, completions)
+    # Fetch the models from the queue
+    model1 = queue.get()
+    model2 = queue.get()
+    model3 = queue.get()
+
+    test_model(model1, model2, model3, prompt, completions)
     # 2. Test tokenization
     tokenized_prompt_v1, tokenized_completions_v1 = model_v1.tokenizer(prompt), [model_v1.tokenizer(comp) for comp in completions]
     tokenized_prompt_v2, tokenized_completions_v2 = model_v2.tokenizer(prompt), [model_v2.tokenizer(comp) for comp in completions]

@@ -12,10 +12,10 @@ URLS = {
     "http://47.189.79.46:50108": "2",
     "http://47.189.79.46:50193": "3",
     "http://47.189.79.46:50060": "4",
-    # 'http://211.21.106.84:57414': "5", # 3090s2
-    # 'http://211.21.106.84:57515': "6",
-    # 'http://211.21.106.84:57298': "7",
-    # 'http://211.21.106.84:57445': "8",
+    'http://211.21.106.84:57414': "5", # 3090s2
+    'http://211.21.106.84:57515': "6",
+    'http://211.21.106.84:57298': "7",
+    'http://211.21.106.84:57445': "8",
 }
 
 # PROMPT = """
@@ -43,7 +43,7 @@ def test_url(url, note, num_requests, num_words):
 
     for i in range(num_requests):
         prompt = pick_random_words(CONVERSATIONAL_WORDS, num_words)
-        completions = [pick_random_words(CONVERSATIONAL_WORDS, num_words) for _ in range(16)]
+        completions = [pick_random_words(CONVERSATIONAL_WORDS, num_words) for _ in range(20)]
         data = {
             "verify_token": VERIFY_TOKEN,
             "prompt": prompt,
