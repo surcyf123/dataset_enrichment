@@ -413,6 +413,20 @@ I don't know the answer to that question
 '''
 ]
 
+def test_model(model1, model2, model3, prompt: str, completions: List[str]):
+    try:
+        v1_rewards = model1.get_rewards(prompt, completions, "dummy_name")
+    except TypeError:
+        v1_rewards = model1.get_rewards(prompt, completions)
+
+    v2_rewards = model2.get_rewards(prompt, completions)
+    v3_rewards = model3.get_rewards(prompt, completions)
+
+    print(f"v1 Rewards: {v1_rewards}")
+    print(f"v2 Rewards: {v2_rewards}")
+    print(f"v3 Rewards: {v3_rewards}")
+    return
+
 def load_model_v1(device):
     return DirectPreferenceRewardModelV1(device=device)
 
