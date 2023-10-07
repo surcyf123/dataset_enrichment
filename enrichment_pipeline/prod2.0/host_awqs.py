@@ -79,7 +79,7 @@ async def process_request(data: RequestModel, gpu_type, model, engine):
     t_per_s = (num_tokens * len(responses)) / (time_end - time_begin)
     return {
         "response": responses,
-        "model": model,
+        "model": "13b model", #replace with 'model'
         "tokens_per_second": t_per_s
     }
 
