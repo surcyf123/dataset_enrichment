@@ -1,0 +1,10 @@
+[
+    {"TheBloke/Dolphin-Llama-13B-GPTQ" :  "Below is an instruction that describes a task\nInstruction: {prompt}\nAssistant:"},
+    {"TheBloke/minotaur-13B-GPTQ" :  "{prompt}"},
+    {"TheBloke/Nous-Puffin-70B-GPTQ" :  "{prompt}"},
+    {"TheBloke/airoboros-13B-GPTQ" :  "{prompt}"},
+    {"TheBloke/OpenAssistant-Llama2-13B-Orca-v2-8K-3166-GPTQ" :  "{prompt}"},
+    {"TheBloke/CAMEL-13B-Combined-Data-GPTQ" :  "{prompt}"},
+    {"TheBloke/vicuna-13B-1.1-GPTQ" :  "{prompt}"},
+    {"TheBloke/Airoboros-L2-13B-2.1-YaRN-64K-GPTQ" :  "{prompt}"}
+]
